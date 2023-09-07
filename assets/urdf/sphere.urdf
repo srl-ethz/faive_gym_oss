@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<robot name="object">
+<!-- The OBJ file was created in Blender with a Image Texture. -->
+<!-- intended to approximate a gacha ball -->
+  <link name="object">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="sphere.obj" scale=".036 .036 .036"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <sphere radius="0.036"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <!-- make total weight of sphere 58 grams, about the same as a tennis ball -->
+      <density value="352.0"/>
+    </inertial>
+  </link>
+</robot>
