@@ -5,7 +5,7 @@ root_dir = os.path.dirname(os.path.realpath(__file__))
 
 INSTALL_REQUIRES = [
     "isaacgymenvs",
-    "wandb==0.12"
+    "wandb<0.13"
 ]
 
 setup(
