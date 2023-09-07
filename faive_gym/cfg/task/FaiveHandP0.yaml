@@ -1,0 +1,41 @@
+# load the default environment parameters, and override the ones we want to change
+defaults:
+  - RobotHandDefault
+
+# The base RobotHand class suffices for the default P0 robot for now
+name: RobotHand
+
+env:
+  numActions: 11
+  object_start_offset: [0, -0.15, 0.07]
+
+asset:
+  model_file: "faive-integration/model/faive_hand_p0/hand.xml"
+  force_sensor_names: ["index_dp", "middle_dp", "ring_dp", "pinky_dp", "thumb_dp"]
+  pose_sensor_names: ["index_dp", "middle_dp", "ring_dp", "pinky_dp", "thumb_dp"]
+
+observations:
+  obs_dims:
+    dof_position: 11
+    dof_pos_target: 11
+    dof_speed: 11
+    dof_speed_numerical: 11
+    dof_force: 11
+    obj_pos: 3
+    obj_quat: 4
+    obj_linvel: 3
+    obj_angvel: 3
+    obj_linvel_numerical: 3
+    obj_angvel_numerical: 3
+    goal_pos: 3
+    goal_quat: 4
+    goal_quat_diff: 4
+    pose_sensor_pos: 15 # 3 * 5
+    pose_sensor_quat: 20  # 4 * 5 
+    pose_sensor_linvel: 15  # 3 * 5
+    pose_sensor_angvel: 15  # 3 * 5
+    force_sensor_force: 30  # 6 * 5
+    actions: 11 
+    obj_pose_history: 35 # 7 dof pose * 5 history length
+    dof_pos_history: 55  # 11 dof joint * 5 history length
+

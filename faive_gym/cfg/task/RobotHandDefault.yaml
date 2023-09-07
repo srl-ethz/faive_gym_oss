@@ -1,0 +1,193 @@
+# Define the default configuration for the RobotHand task.
+# configurations for other robotic hands can be defined by first inheriting from this config (see FaiveHandP0.yaml for an example)
+
+# define in child config- the name of the Python VecTask class used
+name: None
+
+physics_engine: ${..physics_engine}
+
+# if given, will override the device setting in gym.
+env: 
+  numEnvs: ${resolve_default:4096,${...num_envs}}
+  numObservations: None  # this will be overwritten in robot_hand.py
+  numStates: None  # this will be overwritten in robot_hand.py
+  numActions: None  # define in child config
+  env_spacing: 0.2
+  episode_length_s: 10  # episode length in seconds
+  aggregate_mode: True  # provides a "modest performance boost", see isaacgym/docs/programming/physics.html
+
+  object_type: ["block"]  # block, egg, pen, sphere
+  use_relative_control: False
+  relative_control_speed_scale: 5.0  # 5 rad/s max joint rotation speed
+
+  pcd: False
+
+  enable_debug_viz: False
+  # for contact viz to work, CPU pipeline must be used, and contact_collection must be set to 1 or 2 (there are assertions in the code that ensure this)
+  enable_contact_viz: False
+
+  controlFrequencyInv: 1  # how many steps to skip between control updates (i.e. decimation)
+  hand_friction: 1.0  # this sets the friction and torsion_friction of the hand. 1.0 is the default value used for trifinger.
+  object_start_offset: [0, 0, 0]  # position of object initial position, relative to the hand
+  actuated_dof_range_override: None  # optionally use a smaller joint range of actuation, helpful if the real robot can't achieve the full range of motion
+
+asset:
+  # define in child config- the robot model filepath, relative to assets directory
+  model_file: None  
+  # define in child config- body name of each fingertip
+  fingertip_names: None
+
+
+logging:
+  # Defines the properties of online logging.
+  rt_plt: False
+  buf_len_s: 0.6
+  num_rows: 2
+  num_cols: 3 #  multiplication of rows and cols should be equal to the 
+  # number of measurements in the measurements list below
+  measurements: ["_observation_dof_position_stat_thumb_mcp",
+      "_observation_dof_speed_middle_pip",
+      "_observation_dof_force_pinky_mcp",
+      "_reward_dist_stat",
+      "_observation_fingertip_force_stat_thumb",
+      "_observation_obj_angvel_stat",
+      ]
+  units: ["rad", 
+      "rad/s",
+      "Nm",
+      "-",
+      "m",
+      "m"]
+
+rewards:
+  scales:
+    # These are read in faive_hand.py (_prepare_reward function) and the
+    # corresponding reward functions (with the name "_reward_{name}")
+    # are called
+    dist: -0.05
+    rot: 0.01
+
+    action_penalty: -0.000002
+    acceleration_penalty: 0.0  # -0.0000001
+    speed_penalty: 0.0  # -0.00001
+    torque_penalty: 0.0
+
+    reach_goal: 3.0
+    drop_penalty: -0.0001
+    simple_hand_flat: 0.0
+
+  success_tolerance: 0.1
+  fall_dist_threshold: 0.5
+
+actions:
+  clip: True
+  clip_value: 1.0
+
+observations:
+  randomize_obs: False
+  clip: True
+  clip_value: 5.0
+
+  obs_dims: None
+  # define in child config (because each robot has different DoFs)- the observation names and dimensions 
+  # this is used to determine the size of the observation buffer
+
+  obs_scales:
+    # define how much each observation should be scaled
+    # if not given, the default value value of 1.0 is used
+    dof_position: 2.0
+    dof_speed: 0.25
+    dof_force: 5.0
+    obj_pos: 4.0
+    obj_quat: 2.0
+    obj_linvel: 10.0
+    obj_angvel: 0.4
+    goal_pos: 4.0
+    goal_quat: 2.0
+    goal_quat_diff: 2.0
+    pose_sensor_pos: 5.0
+    pose_sensor_quat: 1.0
+    pose_sensor_linvel: 3.0
+    pose_sensor_angvel: 0.2
+    force_sensor_force: 4.0
+    actions: 1.3
+    obj_pose_history: 3.0
+    dof_pos_history: 2.0
+    obj_type: 1.0
+    point_cloud_parallel: 1.0
+
+  noise_scales:
+    dof_position: 0.05
+    dof_speed: 0.1
+    dof_force: 0.1
+    obj_pos: 0.01
+    obj_quat: 0.0
+    obj_linvel: 0.02
+    obj_angvel: 0.02
+    goal_pos: 0.0
+    goal_quat: 0.0
+    goal_quat_diff: 0.0
+    pose_sensor_pos: 0.015
+    pose_sensor_quat: 0.1
+    pose_sensor_linvel: 0.1
+    pose_sensor_angvel: 0.1
+    force_sensor_force: 0.1
+    obj_type: 0.0
+    point_cloud_parallel: 0.001
+    
+    actions: 0.05
+
+  # if True, feed different observations to the actor and critic (e.g. when you want to send privileged information to the critic)
+  # otherwise, the actor_observations is used for both actor and critic
+  asymmetric_observations: False
+  actor_observations: ["dof_position", "dof_speed", "dof_force",
+                       "obj_pos", "obj_quat", "obj_linvel", "obj_angvel",
+                       "goal_pos", "goal_quat", "goal_quat_diff",
+                       "pose_sensor_pos", "pose_sensor_quat", "pose_sensor_linvel", "pose_sensor_angvel", "force_sensor_force",
+                       "actions"]
+
+  
+
+  # used only in student training (student_train.py) - what observations are given to the student
+  student_observations: ["dof_position", "dof_speed", "dof_force",
+                         "obj_pos", "obj_quat", "obj_linvel", "obj_angvel",
+                         "goal_pos", "goal_quat", "goal_quat_diff",
+                         "actions"]
+
+visualization:
+  camera_pos_start: [-0.5, -0.5, 0.6]
+  camera_target_start: [0, 0, 0.5]
+  move_camera: False    # set to true if you want cool camera motion
+  camera_movement_vector: [.005, 0.005, 0.0]
+ 
+reset_noise:
+  # how much noise to add to various dofs when resetting
+  object_pos: 0.01
+  object_rot: 0.0
+  dof_pos: 0.2  # ratio wrt range of motion
+  dof_vel: 0.0
+
+task:
+  randomize: False
+
+sim:
+  dt: 0.01667  # 60 Hz
+  substeps: 2
+  gravity: [0, 0, -9.81]
+  up_axis: "z"  # 0 is y, 1 is z
+  use_gpu_pipeline: ${eq:${...pipeline},"gpu"}
+
+  physx:
+    num_threads: 4  # Number of worker threads per scene used by PhysX - for CPU PhysX only.
+    solver_type: 1  # 0: pgs, 1: tgs
+    num_position_iterations: 8
+    num_velocity_iterations: 0
+    max_gpu_contact_pairs: 8388608  # 8*1024*1024
+    num_subscenes: 4  # Splits the simulation into N physics scenes and runs each one in a separate thread
+    contact_offset: 0.002
+    rest_offset: 0.0
+    bounce_threshold_velocity: 0.2
+    max_depenetration_velocity: 1000.0
+    default_buffer_size_multiplier: 5.0
+    contact_collection: 0  # 0: CC_NEVER (don't collect contact info), 1: CC_LAST_SUBSTEP (collect only contacts on last substep), 2: CC_ALL_SUBSTEPS (default - all contacts)
+

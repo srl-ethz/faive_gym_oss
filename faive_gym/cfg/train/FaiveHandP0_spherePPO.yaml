@@ -1,0 +1,28 @@
+defaults:
+  - FaiveHandP0PPO
+  
+# enable asymmetric observations
+params:
+  config:
+    central_value_config:
+      minibatch_size: ${..minibatch_size}
+      mini_epochs: 5
+      learning_rate: 5e-4
+      lr_schedule: adaptive
+      schedule_type: standard
+      kl_threshold: 0.016
+      clip_value: True
+      normalize_input: True
+      truncate_grads: True
+
+      network:
+        name: actor_critic
+        central_value: True
+        mlp:
+          units: [512, 512, 256, 128]
+          activation: elu
+          d2rl: False
+          initializer:
+            name: default
+          regularizer:
+            name: N
