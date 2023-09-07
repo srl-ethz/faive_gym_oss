@@ -23,10 +23,10 @@ from isaacgymenvs.utils.torch_jit_utils import (
 
 """
 Define the IsaacGym environment for a somewhat generic robot hand
-Different versions of the Faive Hand can be implemented as a child class of this, as well as other similar robot hands
+Different versions of the Faive Hand can be implemented by specifying the model in the config yaml file, as well as other similar robot hands
 Despite this goal, currently it is somewhat hardcoded specifically to the Faive Hand- if some features are too specific to the Faive Hand, they can be moved to a child class
 
-Note: the "pen" object requires some special handling, e.g. ignoring the rotation, which is not migrated from faive-isaac_gym_envs since it is not being used yet.
+if the task or the robot deviates too much from what is implemented here, consider creating a child class
 """
 
 
