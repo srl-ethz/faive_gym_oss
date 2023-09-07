@@ -29,6 +29,8 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# copied from IsaacGymEnvs with slight modifications
+
 import datetime
 import isaacgym
 
@@ -42,6 +44,11 @@ import gym
 from isaacgymenvs.utils.reformat import omegaconf_to_dict, print_dict
 
 from isaacgymenvs.utils.utils import set_np_formatting, set_seed
+
+# register custom tasks for faive_gym here
+from isaacgymenvs.tasks import isaacgym_task_map
+from robot_hand import RobotHand
+isaacgym_task_map["RobotHand"] = RobotHand
 
 ## OmegaConf & Hydra Config
 
