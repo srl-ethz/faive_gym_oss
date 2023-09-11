@@ -1,0 +1,14 @@
+<mujoco model="pentaprism">
+    <compiler angle="radian"/>
+    <default>
+        <geom type="mesh" condim="3" margin="0.005" contype="1" conaffinity="1"/>
+    </default>
+    <asset>
+        <mesh name="pentaprism" file="pentaprism.stl" scale="0.0013 0.0013 0.0013"/>
+    </asset>
+    <worldbody>
+        <body name="pentaprism">
+            <geom mesh="pentaprism" density="400"/>
+        </body>
+    </worldbody>
+</mujoco>

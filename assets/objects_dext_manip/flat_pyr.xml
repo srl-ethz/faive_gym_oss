@@ -1,0 +1,14 @@
+<mujoco model="flat_pyramid">
+    <compiler angle="radian"/>
+    <default>
+        <geom type="mesh" condim="3" margin="0.005" contype="1" conaffinity="1"/>
+    </default>
+    <asset>
+        <mesh name="pyramid" file="flat_pyr.stl" scale="0.0013 0.0013 0.0005"/>
+    </asset>
+    <worldbody>
+        <body name="pyramid">
+            <geom mesh="pyramid" density="400"/>
+        </body>
+    </worldbody>
+</mujoco>

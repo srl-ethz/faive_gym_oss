@@ -810,8 +810,7 @@ class RobotHand(VecTask):
         hand_asset_file = os.path.normpath(self.cfg["asset"]["model_file"])
         asset_files_dict = {
             "block": "urdf/cube_multicolor.urdf",
-            "egg": "mjcf/open_ai_assets/hand/egg.xml",
-            "pen": "urdf/pen.xml", 
+            "sphere": "urdf/sphere.urdf",
             "pyramid": "objects_dext_manip/pyramid.xml",
             "prism": "objects_dext_manip/trig_prism.xml",
             "hex_prism": "objects_dext_manip/hex_prism.xml",
@@ -823,8 +822,6 @@ class RobotHand(VecTask):
             "stell_dodeca": "objects_dext_manip/stell_dodeca.urdf",
             "stairs": "objects_dext_manip/stairs.urdf",
             "block_pyr": "objects_dext_manip/block_pyr.urdf",
-            "mixed": "urdf/objects/cube_multicolor.urdf",
-            "sphere": "urdf/sphere.urdf",
         }
         for i in range(len(self.cfg["env"]["object_type"])):
             try:

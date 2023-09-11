@@ -1,0 +1,14 @@
+<mujoco model="dodecahedron">
+    <compiler angle="radian"/>
+    <default>
+        <geom type="mesh" condim="3" margin="0.005" contype="1" conaffinity="1"/>
+    </default>
+    <asset>
+        <mesh name="dodecahedron" file="dodecahedron.stl" scale="0.0011 0.0011 0.0011"/>
+    </asset>
+    <worldbody>
+        <body name="dodecahedron">
+            <geom mesh="dodecahedron" density="400"/>
+        </body>
+    </worldbody>
+</mujoco>

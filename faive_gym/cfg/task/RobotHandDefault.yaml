@@ -16,7 +16,7 @@ env:
   episode_length_s: 10  # episode length in seconds
   aggregate_mode: True  # provides a "modest performance boost", see isaacgym/docs/programming/physics.html
 
-  object_type: ["block"]  # block, egg, pen, sphere
+  object_type: ["block"]  # block, egg, pen, sphere, ... (check asset_files_dict of robot_hand.py for all options)
   use_relative_control: False
   relative_control_speed_scale: 5.0  # 5 rad/s max joint rotation speed
 
