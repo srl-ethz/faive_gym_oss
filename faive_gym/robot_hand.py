@@ -1,7 +1,3 @@
-import numpy as np
-import os
-import torch
-
 
 from isaacgym import gymtorch, gymapi, gymutil
 from isaacgym.torch_utils import (
@@ -15,6 +11,11 @@ from isaacgym.torch_utils import (
     torch_rand_float,
     quat_from_angle_axis,
 )
+import numpy as np
+import os
+import torch
+
+
 
 from isaacgymenvs.tasks.base.vec_task import VecTask
 from isaacgymenvs.utils.torch_jit_utils import (
