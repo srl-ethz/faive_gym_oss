@@ -342,6 +342,7 @@ class RobotHand(VecTask):
                 self.gym.clear_lines(self.viewer)
             assert not self.cfg["sim"]["use_gpu_pipeline"], "contact visualization can be only done with CPU pipeline"
             assert self.cfg["sim"]["physx"]["contact_collection"] in [1, 2], "contact_collection must be set to 1 or 2"
+            assert not self.cfg["task"]["randomize"], "contact visualization is not supported with randomization, since the code for applying DR seems to be hardcoded to use GPU somewhere"
             self.gym.draw_env_rigid_contacts(self.viewer, self.envs[0], gymapi.Vec3(1,0.2,0.2), 1, False)
 
         # if specified, update the camera position
