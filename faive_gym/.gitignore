@@ -1,4 +1,4 @@
 runs/
 __pycache__/
 videos/
-develop/
+wandb/
