@@ -48,7 +48,7 @@ wandb_entity: ''
 wandb_project: ''
 capture_video: False
 capture_video_freq: 2000
-capture_video_len: 300
+capture_video_len: 100
 force_render: True
 
 # disables rendering

@@ -22,7 +22,7 @@ IsaacGym environments for the Faive Hand, intended to be used together with Isaa
 		python asset_info.py
 		```
 1. Install IsaacGymEnvs
-    1. Clone this repository, together with the faive-integration submodule
+    1. Clone the repository
 		```bash
 		git clone https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
 		```
@@ -41,11 +41,20 @@ IsaacGym environments for the Faive Hand, intended to be used together with Isaa
 		```bash
 		pip install --upgrade protobuf==3.20.0
 		```
+	1. [optional] if the error `ModuleNotFoundError: No module named 'tkinter'` appears, you must install it with
+		```bash
+		sudo apt install python3-tk
+		```
 1. Install this repository (faive_gym)
 	1. If you haven't already, [add the SSH public key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
-    1. Clone this repository, together with the faive-integration submodule
+    1. Clone this repository, together with the faive-integration submodule (only if you have access)
 		```bash
 		git clone git@github.com:srl-ethz/faive_gym.git --recurse-submodules
+		```
+	1. Install with pip
+		```bash
+		cd /path/to/faive_gym
+		pip install -e .
 		```
 
 The default Faive Hand training environment can be run with
@@ -58,7 +67,7 @@ Some additional arguments that can be appended; This has the same effect as modi
 
 arguments | meaning
 --- | --- 
-capture_video=True force_render=False | occasionaly capture video while training and save it to videos/ (also uploads to W&B)
+capture_video=True force_render=False | occasionaly capture video while training and save it to videos/ (also uploads to W&B, if that is enabled)
 capture_video_freq=2000 capture_video_len=200 | (use together with capture_video=True) adjust the frequency / length of recording (save a video of length 200 steps every 2000 steps).
 num_envs=8 | try with fewer robot instances (useful for debugging)
 headless=True | run without GUI
