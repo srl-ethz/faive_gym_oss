@@ -1202,10 +1202,10 @@ class RobotHand(VecTask):
         return 1.0 / (torch.abs(rot_dist) + rot_eps)
 
     # first define generic reward functions that can be used for any task
-        
+
     def _reward_dof_acc_penalty(self):
         """
-        Penalize acceleration, could remove shaking
+        Penalize joint acceleration, could remove shaking
         """
         return torch.norm(self.dof_acceleration, p=2, dim=-1)
 
@@ -1223,7 +1223,7 @@ class RobotHand(VecTask):
 
     def _reward_dof_trq_penalty(self):
         """
-        Penalize the magnitude of the torque
+        Penalize the magnitude of the joint torque
         """
         return torch.norm(self.dof_force_tensor, p=2, dim=-1)
 
