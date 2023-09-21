@@ -383,6 +383,26 @@ class RobotHand(VecTask):
         self.consecutive_successes = torch.where(num_successes > 0, av_factor * finished_consecutive_successes / num_successes + (1.0 - av_factor) * self.consecutive_successes, self.consecutive_successes)
         self.successes[self.reset_buf] = 0
 
+    def reset_goal_states(self, env_ids):
+        """
+        reset the goal states to the initial states for env_ids by overwriting self.goal_states.
+        this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
+        """
+        rand_floats_goal = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), 3), self.device
+        )
+        # reset goal position
+        self.goal_states[env_ids, 0:3] = self.goal_init_states[
+            env_ids, 0:3
+        ]
+        # reset goal orientation
+        self.goal_states[env_ids, 3:7] = randomize_rotation(
+            rand_floats_goal[:, 0],
+            rand_floats_goal[:, 1],
+            self.x_unit_tensor[env_ids],
+            self.y_unit_tensor[env_ids],
+        )
+
     def reset_idx(self, env_ids, goal_env_ids=[]):
         """
         Reset the envs (the robot dofs and the object pose) in env_ids and
@@ -397,20 +417,9 @@ class RobotHand(VecTask):
         reset_indices = torch.zeros(0, device=torch.device(self.device)).to(torch.int32)
 
         if len(goal_env_ids) > 0:
-            rand_floats_goal = torch_rand_float(
-                -1.0, 1.0, (len(goal_env_ids), 3), self.device
-            )
-            # reset goal position
-            self.goal_states[goal_env_ids, 0:3] = self.goal_init_states[
-                goal_env_ids, 0:3
-            ]
-            # reset goal orientation
-            self.goal_states[goal_env_ids, 3:7] = randomize_rotation(
-                rand_floats_goal[:, 0],
-                rand_floats_goal[:, 1],
-                self.x_unit_tensor[goal_env_ids],
-                self.y_unit_tensor[goal_env_ids],
-            )
+            # overwrite self.goal_states in this function
+            self.reset_goal_states(goal_env_ids)
+
             # set the goal states in the sim
             self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
                 self.goal_states[goal_env_ids, 0:3] + self.goal_displacement_tensor
