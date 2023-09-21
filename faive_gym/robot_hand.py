@@ -1183,23 +1183,7 @@ class RobotHand(VecTask):
     # configuration, so they must not contain computation that is used in
     # other functions i.e. they should only compute the reward term and
     # nothing else.
-
-    def _reward_dist(self):
-        """
-        Reward the agent based on the distance between the object and the goal
-        """
-        return torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
-
-    def _reward_rot(self):
-        """
-        Orientation alignment for the cube in hand and goal cube
-        """
-        quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
-        rot_dist = 2.0 * torch.asin(
-            torch.clamp(torch.norm(quat_diff[:, 0:3], p=2, dim=-1), max=1.0)
-        )
-        rot_eps = 0.1
-        return 1.0 / (torch.abs(rot_dist) + rot_eps)
+    # for readability, rewards specific to a task should be named [task_name]task_[reward_name]
 
     # first define generic reward functions that can be used for any task
 
@@ -1247,7 +1231,30 @@ class RobotHand(VecTask):
         dist_from_zero = torch.norm(self.hand_dof_pos, p=2, dim=-1)
         return 1.0 / (dist_from_zero + 0.1)
 
-    def _reward_object_xrotvel(self):
+    # ---------------------------------------------------------------------
+    # define reward functions specific to the in-hand reorientation task
+
+    def _reward_reorienttask_obj_dist(self):
+        """
+        Reward the agent based on the distance between the object and the goal
+        """
+        return torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+
+    def _reward_reorienttask_obj_rot(self):
+        """
+        Orientation alignment for the cube in hand and goal cube
+        """
+        quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
+        rot_dist = 2.0 * torch.asin(
+            torch.clamp(torch.norm(quat_diff[:, 0:3], p=2, dim=-1), max=1.0)
+        )
+        rot_eps = 0.1
+        return 1.0 / (torch.abs(rot_dist) + rot_eps)
+
+    # ---------------------------------------------------------------------
+    # define reward functions specific to the in-hand sphere rotation task
+
+    def _reward_rottask_obj_xrotvel(self):
         """
         reward the rotational velocity in the X axis of the object
         numerically computed velocity is used to avoid instability from isaacgym
