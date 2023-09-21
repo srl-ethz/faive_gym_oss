@@ -1020,21 +1020,6 @@ class RobotHand(VecTask):
         goal_object_indices = []
         # one-hot encoding which saves the object type loaded in each environment
         self.object_type = torch.zeros([self.num_envs, len(self.cfg["env"]["object_type"])])
-
-        #init camera for point clouds
-        if self.cfg["env"]["pcd"]:
-            self.cam_width = 150
-            self.cam_height = 100
-            self.horizontal_fov = 70
-            cam_props = gymapi.CameraProperties()
-            cam_props.width = self.cam_width
-            cam_props.height = self.cam_height
-            cam_props.horizontal_fov = self.horizontal_fov
-            cam_props.enable_tensors = True
-            self.cam_pos = [gymapi.Vec3(-0.2, -0.15, 0.6), gymapi.Vec3(0.2, -0.15, 0.6), gymapi.Vec3(0.0, 0.16, 0.6)]
-            self.cam_target = gymapi.Vec3(0.0, 0.0, 0.55)
-            self.num_cam = 2
-        
         
         for i in range(self.num_envs):
             # create env instance
@@ -1105,14 +1090,6 @@ class RobotHand(VecTask):
             object_indices.append(object_idx)
             goal_object_indices.append(goal_object_idx)
 
-            #set camera properties
-            if self.cfg["env"]["pcd"]:
-                self.cam_handle = []
-                for i in range(self.num_cam):
-                    cam_handle = self.gym.create_camera_sensor(env_ptr, cam_props)
-                    self.cam_handle.append(cam_handle)
-                    self.gym.set_camera_location(cam_handle, env_ptr, self.cam_pos[i], self.cam_target)
-
             if self.cfg["env"]["aggregate_mode"]:
                 self.gym.end_aggregate(env_ptr)
 
@@ -1148,27 +1125,6 @@ class RobotHand(VecTask):
             pose_sensor_handles, dtype=torch.long, device=self.device
         )
 
-        #initinalize variables and buffers needed for computation of point clouds
-        if self.cfg["env"]["pcd"]:
-            self.proj = torch.tensor(self.gym.get_camera_proj_matrix(self.sim, self.envs[0], self.cam_handle[0]), device=self.device)
-            self.fu = 2/self.proj[0, 0]
-            self.fv = 2/self.proj[1, 1] 
-            self.u = torch.arange(0, self.cam_width, device=self.device).reshape((self.cam_width, 1))
-            self.v = torch.arange(0, self.cam_height, device = self.device)
-            self.centerU = self.cam_width/2
-            self.centerV = self.cam_height/2
-
-            self.cut = 75 #number of points per camera per env
-            self.dim = self.cam_width * self.cam_height
-            
-            #split num_envs into smaller chunks for observation_point_cloud_parallel, only
-            #compute num_envs/split point clouds for each observation call, split = 1 is all pcd
-            #go through all envs serially
-            self.split = 16
-            self.split_idx = -1
-            
-            self.depth_buffer = torch.zeros((self.num_envs*self.num_cam*self.cam_height, self.cam_width), device = self.device)
-            self.seg_buffer = torch.zeros((self.num_envs*self.num_cam*self.cam_height, self.cam_width), device = self.device)
 
     def _parse_cfg(self, cfg):
         """
@@ -1501,83 +1457,7 @@ class RobotHand(VecTask):
         
         return self.actions
     
-    def _observation_point_cloud_parallel(self):
-        """
-        Returns the point cloud of objects
-        """
-        
-        self.gym.render_all_camera_sensors(self.sim)
-        self.gym.start_access_image_tensors(self.sim)
 
-        #this for loop is currently the bottleneck for pcd calculation, even at high num_envs such as 1024
-        #the to_point_cloud_conversion() takes only around 0.03 seconds, whereas this for-loop takes 1.5 seconds
-        chunk_size = self.num_envs * self.num_cam // self.split
-        for i in np.arange(0, chunk_size):
-            idx =  (i + self.split_idx * chunk_size) % (self.num_envs * self.num_cam)
-            self.depth_buffer[idx*self.cam_height:(idx+1)*self.cam_height, :] = gymtorch.wrap_tensor(
-                self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[idx // self.num_cam], 
-                                                     self.cam_handle[idx % self.num_cam], gymapi.IMAGE_DEPTH))
-            self.seg_buffer[idx*self.cam_height:(idx+1)*self.cam_height, :] = gymtorch.wrap_tensor(
-                self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[idx // self.num_cam], 
-                                                     self.cam_handle[idx % self.num_cam], gymapi.IMAGE_SEGMENTATION))
-        
-        self.split_idx += 1
-
-        self.gym.end_access_image_tensors(self.sim)
-        self.depth_buffer[self.seg_buffer == 0] = 0
-        points = self.to_point_cloud_conversion()
-        
-        """
-        CHECK COMPUTATION OF TO_POINT_CLOUD_CONVERSION
-        
-        """ 
-        """ check_points = points[2*self.dim:4*self.dim].cpu().numpy()
-        pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(check_points))
-        o3d.visualization.draw_geometries([pcd]) """
-       
-    
-        tensor_points = torch.reshape(points, (self.num_envs, 3*self.cut*self.num_cam))
-        return tensor_points
-    
-    def to_point_cloud_conversion(self):
-        #points = torch.zeros(self.num_envs * self.num_cam, self.cut, 4)
-
-        Z = self.depth_buffer.transpose(0,1)
-        X = -(self.u-self.centerU)/self.cam_width * Z * self.fu
-        Z = torch.vstack(Z.split(self.cam_height, dim=1))
-        Y = (self.v-self.centerV)/self.cam_height * Z * self.fv
-
-        #reshaping for proper calculation
-        X = torch.vstack(X.split(self.cam_height, dim=1))
-        Y = torch.vstack(Y.split(self.cam_height, dim=1))
-        Z = Z.reshape(-1)
-        X = X.reshape(-1)
-        Y = Y.reshape(-1)
-
-        positions = torch.vstack((X, Y, Z, torch.ones(len(X), device=self.device)))
-        positions = positions.permute(1,0)
-        positions = positions.view(self.num_envs * self.num_cam, self.dim, 4)
-
-        all_points = torch.zeros((self.num_envs * self.num_cam, self.dim, 4), device=self.device)
-
-        for k in range(self.num_cam):
-            vinv = torch.inverse((torch.tensor(self.gym.get_camera_view_matrix(
-                self.sim, self.envs[0], self.cam_handle[k])))).to(self.device)
-            
-            all_points[k::2] = positions[k::2]@vinv
-            
-        unique_points = torch.unique_consecutive(all_points, dim=1).to(self.device)
-        if unique_points.size(dim=1) < self.cut:
-            step = 1
-            points = torch.zeros(self.num_envs * self.num_cam, self.cut, 4)
-            points[:, :unique_points.size(dim=1)] = unique_points
-        else:
-            step = unique_points.size(dim=1) // self.cut
-            points = unique_points[:,:step * self.cut:step]
-        
-        points = points.reshape(self.num_envs * self.num_cam * self.cut, 4)
-        
-        return points[:,0:3]
 
 @torch.jit.script
 def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):

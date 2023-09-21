@@ -20,8 +20,6 @@ env:
   use_relative_control: False
   relative_control_speed_scale: 5.0  # 5 rad/s max joint rotation speed
 
-  pcd: False
-
   enable_debug_viz: False
   # for contact viz to work, CPU pipeline must be used, and contact_collection must be set to 1 or 2 (there are assertions in the code that ensure this)
   enable_contact_viz: False
@@ -114,7 +112,6 @@ observations:
     obj_pose_history: 3.0
     dof_pos_history: 2.0
     obj_type: 1.0
-    point_cloud_parallel: 1.0
 
   noise_scales:
     dof_position: 0.05
@@ -133,7 +130,6 @@ observations:
     pose_sensor_angvel: 0.1
     force_sensor_force: 0.1
     obj_type: 0.0
-    point_cloud_parallel: 0.001
     
     actions: 0.05
 
