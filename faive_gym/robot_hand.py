@@ -514,9 +514,6 @@ class RobotHand(VecTask):
         Prepare a list of reward functons, which will be called to compute the total reward
         looks for self._reward_<REWARD_NAME>, where <REWARD_NAME> are the nonzero entries in self.cfg["rewards"]["scales"]
         """
-        # remove items with 0 scale in self.reward_scales
-        self.reward_scales = {k: v for k, v in self.reward_scales.items() if v != 0}
-
         # prepare list of reward functions
         self.reward_functions = []
         self.reward_names = []
@@ -709,6 +706,8 @@ class RobotHand(VecTask):
         """
         self.rew_buf[:] = 0
         for reward_name, reward_func in zip(self.reward_names, self.reward_functions):
+            if self.reward_scales[reward_name] == 0:
+                continue  # ignore zero-scaled rewards
             reward = reward_func() * self.reward_scales[reward_name]
             self.rew_buf += reward
             self.rewards_dict[f"rew_{reward_name}"] = reward.mean()
