@@ -27,10 +27,10 @@ rewards:
     dist: 0
     rot: 0
     action_penalty: -0.002
-    acceleration_penalty: 0
-    speed_penalty: 0
-    torque_penalty: -0.01
-    reach_goal: 0
+    dof_acc_penalty: 0
+    dof_vel_penalty: 0
+    dof_trq_penalty: -0.01
+    success: 0
     drop_penalty: -1.
     simple_hand_flat: 0
     object_xrotvel: 0.01

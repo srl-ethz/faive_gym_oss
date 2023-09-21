@@ -1201,14 +1201,16 @@ class RobotHand(VecTask):
         )
         rot_eps = 0.1
         return 1.0 / (torch.abs(rot_dist) + rot_eps)
+
+    # first define generic reward functions that can be used for any task
         
-    def _reward_acceleration_penalty(self):
+    def _reward_dof_acc_penalty(self):
         """
         Penalize acceleration, could remove shaking
         """
         return torch.norm(self.dof_acceleration, p=2, dim=-1)
 
-    def _reward_speed_penalty(self):
+    def _reward_dof_vel_penalty(self):
         """
         Penalize speed of the joints, smooth out movement
         """
@@ -1220,15 +1222,15 @@ class RobotHand(VecTask):
         """
         return torch.norm(self.actions, p=2, dim=-1)
 
-    def _reward_torque_penalty(self):
+    def _reward_dof_trq_penalty(self):
         """
         Penalize the magnitude of the torque
         """
         return torch.norm(self.dof_force_tensor, p=2, dim=-1)
 
-    def _reward_reach_goal(self):
+    def _reward_success(self):
         """
-        Reward the agent for reaching the goal (success_buf is computed in check_termination())
+        Reward the agent for success (success_buf is computed in check_termination(), its definition is different for each task)
         """
         return self.success_buf
 
