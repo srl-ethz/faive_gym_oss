@@ -10,7 +10,7 @@ env:
   object_start_offset: [0, -0.15, 0.07]
 
 asset:
-  model_file: "faive-integration/model/faive_hand_p0/hand.xml"
+  model_file: "faive_hand_p0/faive_hand.xml"
   force_sensor_names: ["index_dp", "middle_dp", "ring_dp", "pinky_dp", "thumb_dp"]
   pose_sensor_names: ["index_dp", "middle_dp", "ring_dp", "pinky_dp", "thumb_dp"]
 
