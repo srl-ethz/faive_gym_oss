@@ -47,9 +47,9 @@ IsaacGym environments for the Faive Hand, intended to be used together with Isaa
 		```
 1. Install this repository (faive_gym)
 	1. If you haven't already, [add the SSH public key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
-    1. Clone this repository, together with the faive-integration submodule (only if you have access)
+    1. Clone this repository
 		```bash
-		git clone git@github.com:srl-ethz/faive_gym.git --recurse-submodules
+		git clone git@github.com:srl-ethz/faive_gym.git
 		```
 	1. Install with pip
 		```bash
