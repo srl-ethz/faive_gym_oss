@@ -417,6 +417,15 @@ class RobotHand(VecTask):
             self.x_unit_tensor[env_ids],
             self.y_unit_tensor[env_ids],
         )
+    
+    def custom_reset(self):
+        """
+        if you want to set up your own specific code to override the pose of objects, do so here
+        (e.g. keep the object still in the air for the first few moments to help the hand grab it)
+        The function should modify self.root_state_tensor and return a tensor of indices of the objects whose status should be reset.
+        Then the reset_idx function will call gym.set_actor_root_state_tensor_indexed() to actually reset the objects in IsaacGym.
+        """
+        return torch.zeros(0, device=torch.device(self.device))
 
     def reset_idx(self, env_ids, goal_env_ids=[]):
         """
@@ -431,6 +440,12 @@ class RobotHand(VecTask):
         # keep track of which indices of the root state tensor should be reset at the end of this function
         reset_indices = torch.zeros(0, device=torch.device(self.device)).to(torch.int32)
 
+        # handle any custom reset procedures and add the indices of those objects to reset_indices
+        custom_reset_indices = self.custom_reset()
+        reset_indices = torch.cat(
+            (reset_indices, custom_reset_indices.to(torch.int32))
+        )
+ 
         if len(goal_env_ids) > 0:
             # overwrite self.goal_states in this function
             self.reset_goal_states(goal_env_ids)
