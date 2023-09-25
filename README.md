@@ -89,12 +89,16 @@ flowchart
 	a2c_common --load config--> cfg/train/FaiveHandP0PPO.yaml --load default config--> cfg/train/RobotHandPPO.yaml
 ```
 
-# Converting a trained RL policy to be runnable in faive_franka_control
-This will output a .onnx and .pt file to the same directory, which can be loaded in faive_franka_control to run the policy on the real robot.
-```bash
-python save_jit_model.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHand.pth
-```
 To export several models at the same time (which can be handy when testing several policies on the robot), refer to `scripts/export_all_policies.py`.
+# Export a trained RL policy
+This will output a .onnx and .pt file to the same directory, which can be loaded in faive_franka_control or other solutions to run the policy on the real robot.
+The output files, created in the folder `faive_gym/exported_policies`, will have the names `[policy_name]_[timestamp]`, where `policy_name` is set by the `wandb_name`
+parameter. The export can be ran as follows:
+```bash
+python export_policy.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHand.pth wandb_name=policy_name
+```
+To check if the `.onnx` outputs are correct, you can use [netron](https://netron.app/). An exported `.onnx` should produce the following archtiecture:
+![](onnx_export_sample.png)
 
 # Plotting results
 To plot an assessment of rewards and angular velocities recorded during training, compared with boxplots of real speed distributions, refer to `scripts/plot_results.py`. 
