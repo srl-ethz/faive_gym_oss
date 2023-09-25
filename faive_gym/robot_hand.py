@@ -83,8 +83,6 @@ class RobotHand(VecTask):
 
         # define names of relevant body parts
         self.hand_base_name = "root"
-        self.num_force_sensor = len(self.cfg["asset"]["force_sensor_names"])
-        self.num_pose_sensor = len(self.cfg["asset"]["pose_sensor_names"])
         self.sim_device_id = sim_device
 
         super().__init__(config=cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
@@ -167,8 +165,9 @@ class RobotHand(VecTask):
             :, :, 0:13
         ]
         self.vec_sensor_tensor = gymtorch.wrap_tensor(sensor_tensor).view(
-            self.num_envs, self.num_force_sensor * 6 # each sensor has 6 DOF
+            self.num_envs, -1
         )
+        assert self.vec_sensor_tensor.shape[1] % 6 == 0  # sanity check
         self.num_bodies = self.rigid_body_states.shape[1]
 
         self.num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
@@ -1460,36 +1459,32 @@ class RobotHand(VecTask):
         """
         Returns the pose_sensor position for each pose_sensor
         """
-        num_pose_pos = 3 * self.num_pose_sensor
         pose_sensor_pos = self.pose_sensor_state.clone()[:, :, :3]
         pose_sensor_pos -= self.goal_init_states[:, :3].unsqueeze(1)
-        return pose_sensor_pos.reshape(self.num_envs, num_pose_pos)
+        return pose_sensor_pos.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_quat(self):
         """
         Returns the orientation for each pose_sensor, represented
         by a quaternion
         """
-        num_pose_quats = 4 * self.num_pose_sensor
         pose_sensor_quats = self.pose_sensor_state.clone()[:, :, 3:7]
-        return pose_sensor_quats.reshape(self.num_envs, num_pose_quats)
+        return pose_sensor_quats.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_linvel(self):
         """
         Returns the linear velocity of each pose_sensor
         """
-        num_pose_linvels = 3 * self.num_pose_sensor
         pose_sensor_linvel = self.pose_sensor_state.clone()[:, :, 7:10]
-        return pose_sensor_linvel.reshape(self.num_envs, num_pose_linvels)
+        return pose_sensor_linvel.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_angvel(self):
         """
         Returns the 13-DoF full state (pos, quat, linvel, angvel)
         of each pose_sensor
         """
-        num_pose_angvels = 3 * self.num_pose_sensor
         pose_sensor_angvel = self.pose_sensor_state.clone()[:, :, 10:13]
-        return pose_sensor_angvel.reshape(self.num_envs, num_pose_angvels)
+        return pose_sensor_angvel.reshape(self.num_envs, -1)
 
     def _observation_force_sensor_force(self):
         """
