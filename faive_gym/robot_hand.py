@@ -262,9 +262,14 @@ class RobotHand(VecTask):
             )
         self.num_recorded_steps = 0
         timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.recording_save_path = os.path.join(
+        self.recording_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            f'recordings/{timestamp_str}')
+            f'recordings')    
+        if not os.path.exists(save_dir):
+            os.makedirs(self.recording_dir)
+        self.recording_save_path = os.path.join(
+            recording_dir,
+            f'{timestamp_str}')
 
     def pre_physics_step(self, actions):
         """
