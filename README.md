@@ -1,6 +1,6 @@
 # faive_gym
 IsaacGym environments for the Faive Hand, intended to be used together with IsaacGymEnvs
-![](isaacgym_preview.gif)
+![](img/isaacgym_preview.gif)
 
 1. Install Isaac Gym
     1. Download Isaac Gym Preview 4 from the [website](https://developer.nvidia.com/isaac-gym)
@@ -98,7 +98,7 @@ parameter. The export can be ran as follows:
 python export_policy.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHand.pth wandb_name=policy_name
 ```
 To check if the `.onnx` outputs are correct, you can use [netron](https://netron.app/). An exported `.onnx` should produce the following archtiecture:
-![](onnx_export_sample.png)
+![](img/onnx_export_sample.svg)
 
 # Plotting results
 To plot an assessment of rewards and angular velocities recorded during training, compared with boxplots of real speed distributions, refer to `scripts/plot_results.py`. 
