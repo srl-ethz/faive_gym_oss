@@ -60,6 +60,11 @@ from isaacgymenvs.utils.reformat import omegaconf_to_dict, print_dict
 
 from isaacgymenvs.utils.utils import set_np_formatting, set_seed
 
+# register custom tasks for faive_gym here
+from isaacgymenvs.tasks import isaacgym_task_map
+from faive_gym.robot_hand import RobotHand
+isaacgym_task_map["RobotHand"] = RobotHand
+
 ## ModelWrapper class from https://colab.research.google.com/github/Denys88/rl_games/blob/master/notebooks/train_and_export_onnx_example_discrete.ipynb
 class ModelWrapper(torch.nn.Module):
     '''
