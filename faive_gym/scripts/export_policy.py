@@ -191,10 +191,13 @@ def launch_rlg_hydra(cfg: DictConfig):
         print(flattened_outputs)
     # export onnx and torchscript
     faive_gym_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    save_path = os.path.join(faive_gym_path,"exported_policies",run_name)
-    traced.save(save_path + '.pt')
-    torch.onnx.export(traced, *adapter.flattened_inputs, save_path + ".onnx", verbose=True, input_names=['obs'], output_names=['mu','log_std', 'value'])
-    onnx_model = onnx.load(save_path + ".onnx")
+    save_dir = os.path.join(faive_gym_path,"exported_policies")
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path_base = os.path.join(save_dir, run_name)
+    traced.save(save_path_base + '.pt')
+    torch.onnx.export(traced, *adapter.flattened_inputs, save_path_base + ".onnx", verbose=True, input_names=['obs'], output_names=['mu','log_std', 'value'])
+    onnx_model = onnx.load(save_path_base + ".onnx")
 
     # Check that the model is well formed
     onnx.checker.check_model(onnx_model)
