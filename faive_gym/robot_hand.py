@@ -398,6 +398,35 @@ class RobotHand(VecTask):
         self.consecutive_successes = torch.where(num_successes > 0, av_factor * finished_consecutive_successes / num_successes + (1.0 - av_factor) * self.consecutive_successes, self.consecutive_successes)
         self.successes[self.reset_buf] = 0
 
+    def reset_goal_states(self, env_ids):
+        """
+        reset the goal states to the initial states for env_ids by overwriting self.goal_states.
+        this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
+        """
+        rand_floats_goal = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), 3), self.device
+        )
+        # reset goal position
+        self.goal_states[env_ids, 0:3] = self.goal_init_states[
+            env_ids, 0:3
+        ]
+        # reset goal orientation
+        self.goal_states[env_ids, 3:7] = randomize_rotation(
+            rand_floats_goal[:, 0],
+            rand_floats_goal[:, 1],
+            self.x_unit_tensor[env_ids],
+            self.y_unit_tensor[env_ids],
+        )
+    
+    def custom_reset(self):
+        """
+        if you want to set up your own specific code to override the pose of objects, do so here
+        (e.g. keep the object still in the air for the first few moments to help the hand grab it)
+        The function should modify self.root_state_tensor and return a tensor of indices of the objects whose status should be reset.
+        Then the reset_idx function will call gym.set_actor_root_state_tensor_indexed() to actually reset the objects in IsaacGym.
+        """
+        return torch.zeros(0, device=torch.device(self.device))
+
     def reset_idx(self, env_ids, goal_env_ids=[]):
         """
         Reset the envs (the robot dofs and the object pose) in env_ids and
@@ -411,21 +440,16 @@ class RobotHand(VecTask):
         # keep track of which indices of the root state tensor should be reset at the end of this function
         reset_indices = torch.zeros(0, device=torch.device(self.device)).to(torch.int32)
 
+        # handle any custom reset procedures and add the indices of those objects to reset_indices
+        custom_reset_indices = self.custom_reset()
+        reset_indices = torch.cat(
+            (reset_indices, custom_reset_indices.to(torch.int32))
+        )
+ 
         if len(goal_env_ids) > 0:
-            rand_floats_goal = torch_rand_float(
-                -1.0, 1.0, (len(goal_env_ids), 3), self.device
-            )
-            # reset goal position
-            self.goal_states[goal_env_ids, 0:3] = self.goal_init_states[
-                goal_env_ids, 0:3
-            ]
-            # reset goal orientation
-            self.goal_states[goal_env_ids, 3:7] = randomize_rotation(
-                rand_floats_goal[:, 0],
-                rand_floats_goal[:, 1],
-                self.x_unit_tensor[goal_env_ids],
-                self.y_unit_tensor[goal_env_ids],
-            )
+            # overwrite self.goal_states in this function
+            self.reset_goal_states(goal_env_ids)
+
             # set the goal states in the sim
             self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
                 self.goal_states[goal_env_ids, 0:3] + self.goal_displacement_tensor
@@ -506,7 +530,9 @@ class RobotHand(VecTask):
             self.progress_buf[env_ids] = 0
 
         if len(goal_env_ids) or len(env_ids):
-            self.gym.set_actor_root_state_tensor_indexed(
+            # apparently this can only be called once per step?
+            # will return False if command fails
+            assert self.gym.set_actor_root_state_tensor_indexed(
                 self.sim,
                 gymtorch.unwrap_tensor(self.root_state_tensor),
                 gymtorch.unwrap_tensor(reset_indices),
@@ -529,9 +555,6 @@ class RobotHand(VecTask):
         Prepare a list of reward functons, which will be called to compute the total reward
         looks for self._reward_<REWARD_NAME>, where <REWARD_NAME> are the nonzero entries in self.cfg["rewards"]["scales"]
         """
-        # remove items with 0 scale in self.reward_scales
-        self.reward_scales = {k: v for k, v in self.reward_scales.items() if v != 0}
-
         # prepare list of reward functions
         self.reward_functions = []
         self.reward_names = []
@@ -724,6 +747,8 @@ class RobotHand(VecTask):
         """
         self.rew_buf[:] = 0
         for reward_name, reward_func in zip(self.reward_names, self.reward_functions):
+            if self.reward_scales[reward_name] == 0:
+                continue  # ignore zero-scaled rewards
             reward = reward_func() * self.reward_scales[reward_name]
             self.rew_buf += reward
             self.rewards_dict[f"rew_{reward_name}"] = reward.mean()
@@ -1035,21 +1060,6 @@ class RobotHand(VecTask):
         goal_object_indices = []
         # one-hot encoding which saves the object type loaded in each environment
         self.object_type = torch.zeros([self.num_envs, len(self.cfg["env"]["object_type"])])
-
-        #init camera for point clouds
-        if self.cfg["env"]["pcd"]:
-            self.cam_width = 150
-            self.cam_height = 100
-            self.horizontal_fov = 70
-            cam_props = gymapi.CameraProperties()
-            cam_props.width = self.cam_width
-            cam_props.height = self.cam_height
-            cam_props.horizontal_fov = self.horizontal_fov
-            cam_props.enable_tensors = True
-            self.cam_pos = [gymapi.Vec3(-0.2, -0.15, 0.6), gymapi.Vec3(0.2, -0.15, 0.6), gymapi.Vec3(0.0, 0.16, 0.6)]
-            self.cam_target = gymapi.Vec3(0.0, 0.0, 0.55)
-            self.num_cam = 2
-        
         
         for i in range(self.num_envs):
             # create env instance
@@ -1120,14 +1130,6 @@ class RobotHand(VecTask):
             object_indices.append(object_idx)
             goal_object_indices.append(goal_object_idx)
 
-            #set camera properties
-            if self.cfg["env"]["pcd"]:
-                self.cam_handle = []
-                for i in range(self.num_cam):
-                    cam_handle = self.gym.create_camera_sensor(env_ptr, cam_props)
-                    self.cam_handle.append(cam_handle)
-                    self.gym.set_camera_location(cam_handle, env_ptr, self.cam_pos[i], self.cam_target)
-
             if self.cfg["env"]["aggregate_mode"]:
                 self.gym.end_aggregate(env_ptr)
 
@@ -1163,27 +1165,6 @@ class RobotHand(VecTask):
             pose_sensor_handles, dtype=torch.long, device=self.device
         )
 
-        #initinalize variables and buffers needed for computation of point clouds
-        if self.cfg["env"]["pcd"]:
-            self.proj = torch.tensor(self.gym.get_camera_proj_matrix(self.sim, self.envs[0], self.cam_handle[0]), device=self.device)
-            self.fu = 2/self.proj[0, 0]
-            self.fv = 2/self.proj[1, 1] 
-            self.u = torch.arange(0, self.cam_width, device=self.device).reshape((self.cam_width, 1))
-            self.v = torch.arange(0, self.cam_height, device = self.device)
-            self.centerU = self.cam_width/2
-            self.centerV = self.cam_height/2
-
-            self.cut = 75 #number of points per camera per env
-            self.dim = self.cam_width * self.cam_height
-            
-            #split num_envs into smaller chunks for observation_point_cloud_parallel, only
-            #compute num_envs/split point clouds for each observation call, split = 1 is all pcd
-            #go through all envs serially
-            self.split = 16
-            self.split_idx = -1
-            
-            self.depth_buffer = torch.zeros((self.num_envs*self.num_cam*self.cam_height, self.cam_width), device = self.device)
-            self.seg_buffer = torch.zeros((self.num_envs*self.num_cam*self.cam_height, self.cam_width), device = self.device)
 
     def _parse_cfg(self, cfg):
         """
@@ -1243,31 +1224,17 @@ class RobotHand(VecTask):
     # configuration, so they must not contain computation that is used in
     # other functions i.e. they should only compute the reward term and
     # nothing else.
+    # for readability, rewards specific to a task should be named [task_name]task_[reward_name]
 
-    def _reward_dist(self):
-        """
-        Reward the agent based on the distance between the object and the goal
-        """
-        return torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+    # first define generic reward functions that can be used for any task
 
-    def _reward_rot(self):
+    def _reward_dof_acc_penalty(self):
         """
-        Orientation alignment for the cube in hand and goal cube
-        """
-        quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
-        rot_dist = 2.0 * torch.asin(
-            torch.clamp(torch.norm(quat_diff[:, 0:3], p=2, dim=-1), max=1.0)
-        )
-        rot_eps = 0.1
-        return 1.0 / (torch.abs(rot_dist) + rot_eps)
-        
-    def _reward_acceleration_penalty(self):
-        """
-        Penalize acceleration, could remove shaking
+        Penalize joint acceleration, could remove shaking
         """
         return torch.norm(self.dof_acceleration, p=2, dim=-1)
 
-    def _reward_speed_penalty(self):
+    def _reward_dof_vel_penalty(self):
         """
         Penalize speed of the joints, smooth out movement
         """
@@ -1279,15 +1246,15 @@ class RobotHand(VecTask):
         """
         return torch.norm(self.actions, p=2, dim=-1)
 
-    def _reward_torque_penalty(self):
+    def _reward_dof_trq_penalty(self):
         """
-        Penalize the magnitude of the torque
+        Penalize the magnitude of the joint torque
         """
         return torch.norm(self.dof_force_tensor, p=2, dim=-1)
 
-    def _reward_reach_goal(self):
+    def _reward_success(self):
         """
-        Reward the agent for reaching the goal (success_buf is computed in check_termination())
+        Reward the agent for success (success_buf is computed in check_termination(), its definition is different for each task)
         """
         return self.success_buf
 
@@ -1305,7 +1272,30 @@ class RobotHand(VecTask):
         dist_from_zero = torch.norm(self.hand_dof_pos, p=2, dim=-1)
         return 1.0 / (dist_from_zero + 0.1)
 
-    def _reward_object_xrotvel(self):
+    # ---------------------------------------------------------------------
+    # define reward functions specific to the in-hand reorientation task
+
+    def _reward_reorienttask_obj_dist(self):
+        """
+        Reward the agent based on the distance between the object and the goal
+        """
+        return torch.norm(self.object_pos - self.goal_pos, p=2, dim=-1)
+
+    def _reward_reorienttask_obj_rot(self):
+        """
+        Orientation alignment for the cube in hand and goal cube
+        """
+        quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
+        rot_dist = 2.0 * torch.asin(
+            torch.clamp(torch.norm(quat_diff[:, 0:3], p=2, dim=-1), max=1.0)
+        )
+        rot_eps = 0.1
+        return 1.0 / (torch.abs(rot_dist) + rot_eps)
+
+    # ---------------------------------------------------------------------
+    # define reward functions specific to the in-hand sphere rotation task
+
+    def _reward_rottask_obj_xrotvel(self):
         """
         reward the rotational velocity in the X axis of the object
         numerically computed velocity is used to avoid instability from isaacgym
@@ -1516,83 +1506,7 @@ class RobotHand(VecTask):
         
         return self.actions
     
-    def _observation_point_cloud_parallel(self):
-        """
-        Returns the point cloud of objects
-        """
-        
-        self.gym.render_all_camera_sensors(self.sim)
-        self.gym.start_access_image_tensors(self.sim)
 
-        #this for loop is currently the bottleneck for pcd calculation, even at high num_envs such as 1024
-        #the to_point_cloud_conversion() takes only around 0.03 seconds, whereas this for-loop takes 1.5 seconds
-        chunk_size = self.num_envs * self.num_cam // self.split
-        for i in np.arange(0, chunk_size):
-            idx =  (i + self.split_idx * chunk_size) % (self.num_envs * self.num_cam)
-            self.depth_buffer[idx*self.cam_height:(idx+1)*self.cam_height, :] = gymtorch.wrap_tensor(
-                self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[idx // self.num_cam], 
-                                                     self.cam_handle[idx % self.num_cam], gymapi.IMAGE_DEPTH))
-            self.seg_buffer[idx*self.cam_height:(idx+1)*self.cam_height, :] = gymtorch.wrap_tensor(
-                self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[idx // self.num_cam], 
-                                                     self.cam_handle[idx % self.num_cam], gymapi.IMAGE_SEGMENTATION))
-        
-        self.split_idx += 1
-
-        self.gym.end_access_image_tensors(self.sim)
-        self.depth_buffer[self.seg_buffer == 0] = 0
-        points = self.to_point_cloud_conversion()
-        
-        """
-        CHECK COMPUTATION OF TO_POINT_CLOUD_CONVERSION
-        
-        """ 
-        """ check_points = points[2*self.dim:4*self.dim].cpu().numpy()
-        pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(check_points))
-        o3d.visualization.draw_geometries([pcd]) """
-       
-    
-        tensor_points = torch.reshape(points, (self.num_envs, 3*self.cut*self.num_cam))
-        return tensor_points
-    
-    def to_point_cloud_conversion(self):
-        #points = torch.zeros(self.num_envs * self.num_cam, self.cut, 4)
-
-        Z = self.depth_buffer.transpose(0,1)
-        X = -(self.u-self.centerU)/self.cam_width * Z * self.fu
-        Z = torch.vstack(Z.split(self.cam_height, dim=1))
-        Y = (self.v-self.centerV)/self.cam_height * Z * self.fv
-
-        #reshaping for proper calculation
-        X = torch.vstack(X.split(self.cam_height, dim=1))
-        Y = torch.vstack(Y.split(self.cam_height, dim=1))
-        Z = Z.reshape(-1)
-        X = X.reshape(-1)
-        Y = Y.reshape(-1)
-
-        positions = torch.vstack((X, Y, Z, torch.ones(len(X), device=self.device)))
-        positions = positions.permute(1,0)
-        positions = positions.view(self.num_envs * self.num_cam, self.dim, 4)
-
-        all_points = torch.zeros((self.num_envs * self.num_cam, self.dim, 4), device=self.device)
-
-        for k in range(self.num_cam):
-            vinv = torch.inverse((torch.tensor(self.gym.get_camera_view_matrix(
-                self.sim, self.envs[0], self.cam_handle[k])))).to(self.device)
-            
-            all_points[k::2] = positions[k::2]@vinv
-            
-        unique_points = torch.unique_consecutive(all_points, dim=1).to(self.device)
-        if unique_points.size(dim=1) < self.cut:
-            step = 1
-            points = torch.zeros(self.num_envs * self.num_cam, self.cut, 4)
-            points[:, :unique_points.size(dim=1)] = unique_points
-        else:
-            step = unique_points.size(dim=1) // self.cut
-            points = unique_points[:,:step * self.cut:step]
-        
-        points = points.reshape(self.num_envs * self.num_cam * self.cut, 4)
-        
-        return points[:,0:3]
 
 @torch.jit.script
 def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):

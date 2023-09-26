@@ -20,8 +20,6 @@ env:
   use_relative_control: False
   relative_control_speed_scale: 5.0  # 5 rad/s max joint rotation speed
 
-  pcd: False
-
   enable_debug_viz: False
   # for contact viz to work, CPU pipeline must be used, and contact_collection must be set to 1 or 2 (there are assertions in the code that ensure this)
   enable_contact_viz: False
@@ -64,17 +62,18 @@ rewards:
     # These are read in faive_hand.py (_prepare_reward function) and the
     # corresponding reward functions (with the name "_reward_{name}")
     # are called
-    dist: -0.05
-    rot: 0.01
+
 
     action_penalty: -0.000002
-    acceleration_penalty: 0.0  # -0.0000001
-    speed_penalty: 0.0  # -0.00001
-    torque_penalty: 0.0
-
-    reach_goal: 3.0
+    dof_acc_penalty: 0.0  # -0.0000001
+    dof_vel_penalty: 0.0  # -0.00001
+    dof_trq_penalty: 0.0
+    success: 3.0
     drop_penalty: -0.0001
     simple_hand_flat: 0.0
+    
+    reorienttask_obj_dist: -0.05
+    reorienttask_obj_rot: 0.01
 
   success_tolerance: 0.1
   fall_dist_threshold: 0.5
@@ -114,7 +113,6 @@ observations:
     obj_pose_history: 3.0
     dof_pos_history: 2.0
     obj_type: 1.0
-    point_cloud_parallel: 1.0
 
   noise_scales:
     dof_position: 0.05
@@ -133,7 +131,6 @@ observations:
     pose_sensor_angvel: 0.1
     force_sensor_force: 0.1
     obj_type: 0.0
-    point_cloud_parallel: 0.001
     
     actions: 0.05
 

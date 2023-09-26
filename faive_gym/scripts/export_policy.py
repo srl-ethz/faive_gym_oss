@@ -1,3 +1,7 @@
+# Script that saves torch jit compiled policies for sim-to-real transfer, made
+# by Benedek Forrai (bforrai@student.ethz.ch). A modified version of train.py,
+# the header of which is pasted below.
+#
 # train.py
 # Script to train policies in Isaac Gym
 #
@@ -29,7 +33,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# copied from IsaacGymEnvs with slight modifications
+# Export a trained RL policy
+# This will output a .onnx and .pt file to the same directory, which can be loaded in faive_franka_control or other solutions to run the policy on the real robot.
+# The output files, created in the folder `faive_gym/exported_policies`, will have the names `[policy_name]_[timestamp]`, where `policy_name` is set by the `wandb_name`
+# parameter. The export can be ran as follows:
+# ```bash
+# python export_policy.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHand.pth wandb_name=policy_name
+# ```
+# To check if the `.onnx` outputs are correct, you can use [netron](https://netron.app/). An exported `.onnx` should produce the following archtiecture:
+# ![](onnx_export_sample.png)
 
 import datetime
 import isaacgym
@@ -40,6 +52,9 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from hydra.utils import to_absolute_path
 import gym
+import torch
+import onnx
+import onnxruntime as ort
 
 from isaacgymenvs.utils.reformat import omegaconf_to_dict, print_dict
 
@@ -50,10 +65,32 @@ from isaacgymenvs.tasks import isaacgym_task_map
 from faive_gym.robot_hand import RobotHand
 isaacgym_task_map["RobotHand"] = RobotHand
 
+## ModelWrapper class from https://colab.research.google.com/github/Denys88/rl_games/blob/master/notebooks/train_and_export_onnx_example_discrete.ipynb
+class ModelWrapper(torch.nn.Module):
+    '''
+    Main idea is to ignore outputs which we don't need from model
+    '''
+    def __init__(self, model):
+        torch.nn.Module.__init__(self)
+        self._model = model
+        
+        
+    def forward(self,input_dict):
+        input_dict['obs'] = self._model.norm_obs(input_dict['obs'])
+        '''
+        just model export doesn't work. Looks like onnx issue with torch distributions
+        thats why we are exporting only neural network
+        '''
+        #print(input_dict)
+        #output_dict = self._model.a2c_network(input_dict)
+        #input_dict['is_train'] = False
+        #return output_dict['logits'], output_dict['values']
+        return self._model.a2c_network(input_dict)
+
 ## OmegaConf & Hydra Config
 
 # Resolvers used in hydra configs (see https://omegaconf.readthedocs.io/en/2.1_branch/usage.html#resolvers)
-@hydra.main(config_name="config", config_path="./cfg")
+@hydra.main(config_name="config", config_path="../cfg")
 def launch_rlg_hydra(cfg: DictConfig):
     from isaacgymenvs.utils.rlgames_utils import RLGPUEnv, RLGPUAlgoObserver, get_rlgames_env_creator
     from rl_games.common import env_configurations, vecenv
@@ -87,21 +124,8 @@ def launch_rlg_hydra(cfg: DictConfig):
     # sets seed. if seed is -1 will pick a random one
     cfg.seed += rank
     cfg.seed = set_seed(cfg.seed, torch_deterministic=cfg.torch_deterministic, rank=rank)
-
-    if cfg.wandb_activate and rank == 0:
-        # Make sure to install WandB if you actually use this.
-        import wandb
-
-        run = wandb.init(
-            project=cfg.wandb_project,
-            group=cfg.wandb_group,
-            entity=cfg.wandb_entity,
-            config=cfg_dict,
-            sync_tensorboard=True,
-            name=run_name,
-            resume="allow",
-            monitor_gym=True,
-        )
+    # force running on cpu
+    cfg.sim_device = 'cpu'
 
     def create_env_thunk(**kwargs):
         envs = isaacgymenvs.make(
@@ -118,14 +142,6 @@ def launch_rlg_hydra(cfg: DictConfig):
             cfg,
             **kwargs,
         )
-        if cfg.capture_video:
-            envs.is_vector_env = True
-            envs = gym.wrappers.RecordVideo(
-                envs,
-                f"videos/{run_name}",
-                step_trigger=lambda step: step % cfg.capture_video_freq == 0,
-                video_length=cfg.capture_video_len,
-            )
         return envs
 
     # register the rl-games adapter to use inside the runner
@@ -155,20 +171,36 @@ def launch_rlg_hydra(cfg: DictConfig):
     runner.reset()
 
     # dump config dict
-    experiment_dir = os.path.join('runs', cfg.train.params.config.name)
-    os.makedirs(experiment_dir, exist_ok=True)
-    with open(os.path.join(experiment_dir, 'config.yaml'), 'w') as f:
-        f.write(OmegaConf.to_yaml(cfg))
+    # load agent from the path we'd like to convert
+    agent = runner.create_player()
+    agent.restore(cfg.checkpoint)
+    # run tracing on cpu
+    print("Current device of the agent:")
+    print(agent.device)
+    # run torch.jit.trace on the model
+    import rl_games.algos_torch.flatten as flatten
+    inputs = {
+        'obs' : torch.zeros((1,) + agent.obs_shape).to(agent.device),
+        'rnn_states' : agent.states,
+    }
 
-    runner.run({
-        'train': not cfg.test,
-        'play': cfg.test,
-        'checkpoint' : cfg.checkpoint,
-        'sigma' : None
-    })
+    with torch.no_grad():
+        adapter = flatten.TracingAdapter(ModelWrapper(agent.model), inputs, allow_non_tensor=True)
+        traced = torch.jit.trace(adapter, adapter.flattened_inputs, check_trace=False)
+        flattened_outputs = traced(*adapter.flattened_inputs)
+        print(flattened_outputs)
+    # export onnx and torchscript
+    faive_gym_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    save_dir = os.path.join(faive_gym_path,"exported_policies")
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path_base = os.path.join(save_dir, run_name)
+    traced.save(save_path_base + '.pt')
+    torch.onnx.export(traced, *adapter.flattened_inputs, save_path_base + ".onnx", verbose=True, input_names=['obs'], output_names=['mu','log_std', 'value'])
+    onnx_model = onnx.load(save_path_base + ".onnx")
 
-    if cfg.wandb_activate and rank == 0:
-        wandb.finish()
+    # Check that the model is well formed
+    onnx.checker.check_model(onnx_model)
 
 if __name__ == "__main__":
     launch_rlg_hydra()

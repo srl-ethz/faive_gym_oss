@@ -2,3 +2,5 @@ runs/
 __pycache__/
 videos/
 wandb/
+exported_policies/
+models/
