@@ -33,7 +33,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-
+# Export a trained RL policy
+# This will output a .onnx and .pt file to the same directory, which can be loaded in faive_franka_control or other solutions to run the policy on the real robot.
+# The output files, created in the folder `faive_gym/exported_policies`, will have the names `[policy_name]_[timestamp]`, where `policy_name` is set by the `wandb_name`
+# parameter. The export can be ran as follows:
+# ```bash
+# python export_policy.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHand.pth wandb_name=policy_name
+# ```
+# To check if the `.onnx` outputs are correct, you can use [netron](https://netron.app/). An exported `.onnx` should produce the following archtiecture:
+# ![](onnx_export_sample.png)
 
 import datetime
 import isaacgym
@@ -51,6 +59,11 @@ import onnxruntime as ort
 from isaacgymenvs.utils.reformat import omegaconf_to_dict, print_dict
 
 from isaacgymenvs.utils.utils import set_np_formatting, set_seed
+
+# register custom tasks for faive_gym here
+from isaacgymenvs.tasks import isaacgym_task_map
+from faive_gym.robot_hand import RobotHand
+isaacgym_task_map["RobotHand"] = RobotHand
 
 ## ModelWrapper class from https://colab.research.google.com/github/Denys88/rl_games/blob/master/notebooks/train_and_export_onnx_example_discrete.ipynb
 class ModelWrapper(torch.nn.Module):
@@ -178,10 +191,13 @@ def launch_rlg_hydra(cfg: DictConfig):
         print(flattened_outputs)
     # export onnx and torchscript
     faive_gym_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    save_path = os.path.join(faive_gym_path,"exported_policies",run_name)
-    traced.save(save_path + '.pt')
-    torch.onnx.export(traced, *adapter.flattened_inputs, save_path + ".onnx", verbose=True, input_names=['obs'], output_names=['mu','log_std', 'value'])
-    onnx_model = onnx.load(save_path + ".onnx")
+    save_dir = os.path.join(faive_gym_path,"exported_policies")
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path_base = os.path.join(save_dir, run_name)
+    traced.save(save_path_base + '.pt')
+    torch.onnx.export(traced, *adapter.flattened_inputs, save_path_base + ".onnx", verbose=True, input_names=['obs'], output_names=['mu','log_std', 'value'])
+    onnx_model = onnx.load(save_path_base + ".onnx")
 
     # Check that the model is well formed
     onnx.checker.check_model(onnx_model)
