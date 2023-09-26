@@ -100,5 +100,14 @@ python export_policy.py task=FaiveHandP0 checkpoint=/path/to/checkpoint/FaiveHan
 To check if the `.onnx` outputs are correct, you can use [netron](https://netron.app/). An exported `.onnx` should produce the following archtiecture:
 ![](onnx_export_sample.png)
 
+
+# Recording observations and joint positions for debugging
+You can record all observations and joint positions for an already trained policy by running:
+```
+python train.py task=FaiveHandP0 headless=True test=True checkpoint=runs/FaiveHand/nn/[your_checkpoint.pth] num_envs=[env_number] task.logging.record_dofs=True task.logging.record_observations=True task.logging.record_length=[your_record_length]
+```
+As all environments are recorded in parallel, it is advised not to use a high number of environments - lower hundreds will work, but a high number of envs + long recordings could lead to memory issues.
+The recording length is given in the number of environment steps that are recording, if you'd like to record for a certain amount of seconds, check the task.sim.dt constant.
+
 # Plotting results
 To plot an assessment of rewards and angular velocities recorded during training, compared with boxplots of real speed distributions, refer to `scripts/plot_results.py`. 
