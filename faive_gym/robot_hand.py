@@ -265,7 +265,7 @@ class RobotHand(VecTask):
         self.recording_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             f'recordings')    
-        if not os.path.exists(save_dir):
+        if not os.path.exists(self.recording_dir):
             os.makedirs(self.recording_dir)
         self.recording_save_path = os.path.join(
             recording_dir,
