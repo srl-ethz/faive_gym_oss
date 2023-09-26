@@ -268,7 +268,7 @@ class RobotHand(VecTask):
         if not os.path.exists(self.recording_dir):
             os.makedirs(self.recording_dir)
         self.recording_save_path = os.path.join(
-            recording_dir,
+            self.recording_dir,
             f'{timestamp_str}')
 
     def pre_physics_step(self, actions):
