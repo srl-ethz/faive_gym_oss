@@ -3,3 +3,4 @@ __pycache__/
 videos/
 wandb/
 exported_policies/
+models/
