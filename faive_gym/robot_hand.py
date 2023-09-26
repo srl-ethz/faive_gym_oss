@@ -1172,7 +1172,6 @@ class RobotHand(VecTask):
         self.reward_scales = class_to_dict(cfg["rewards"]["scales"])
         self.obs_dims = class_to_dict(cfg["observations"]["obs_dims"])
         self.obs_scales = class_to_dict(cfg["observations"]["obs_scales"])
-        self.obs_noise_scales = class_to_dict(cfg["observations"]["noise_scales"])
 
     # ------------- debug visualizer functions -----------------
     def _draw_sphere(self, env_idx, x, y, z, radius=0.05, color=(1, 1, 0)):

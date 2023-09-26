@@ -114,25 +114,6 @@ observations:
     dof_pos_history: 2.0
     obj_type: 1.0
 
-  noise_scales:
-    dof_position: 0.05
-    dof_speed: 0.1
-    dof_force: 0.1
-    obj_pos: 0.01
-    obj_quat: 0.0
-    obj_linvel: 0.02
-    obj_angvel: 0.02
-    goal_pos: 0.0
-    goal_quat: 0.0
-    goal_quat_diff: 0.0
-    pose_sensor_pos: 0.015
-    pose_sensor_quat: 0.1
-    pose_sensor_linvel: 0.1
-    pose_sensor_angvel: 0.1
-    force_sensor_force: 0.1
-    obj_type: 0.0
-    
-    actions: 0.05
 
   # if True, feed different observations to the actor and critic (e.g. when you want to send privileged information to the critic)
   # otherwise, the actor_observations is used for both actor and critic
