@@ -92,8 +92,12 @@ observations:
   # this is used to determine the size of the observation buffer
 
   obs_scales:
-    # define how much each observation should be scaled
-    # if not given, the default value value of 1.0 is used
+    # Optionally define how much each observation should be scaled
+    # if not given, the default value value of 1.0 is used.
+    # Even if the scale is not specified here,
+    # rl_games has a running normalizer (rl_games/algos_torch/running_mean_std.py)
+    # which tries to normalize observations before sending them to the network.
+    # Tuning this will probably not drastically improve the performance!
     dof_position: 2.0
     dof_speed: 0.25
     dof_force: 5.0
