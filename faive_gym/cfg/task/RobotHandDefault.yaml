@@ -29,6 +29,11 @@ env:
   object_start_offset: [0, 0, 0]  # position of object initial position, relative to the hand
   actuated_dof_range_override: None  # optionally use a smaller joint range of actuation, helpful if the real robot can't achieve the full range of motion
 
+  # hand start pose position (x, y, z)
+  hand_start_p: [0, 0, 0.5] # Default: [0, 0, 0.5]
+  # hand start pose quaternion (w, x, y, z)
+  hand_start_r: [0.9848078, 0, 0, -0.1736482] # Default: [0.9848078, 0, 0, -0.1736482]
+
 asset:
   # define in child config- the robot model filepath, relative to assets directory
   model_file: None  

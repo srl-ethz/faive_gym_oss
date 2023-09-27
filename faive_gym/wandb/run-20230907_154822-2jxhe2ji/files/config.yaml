@@ -1,0 +1,402 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.12.0
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.10
+    start_time: 1694101702
+    t:
+      1:
+      - 1
+      4: 3.8.10
+      5: 0.12.0
+      8:
+      - 5
+always_start_from_epoch0:
+  desc: null
+  value: false
+capture_video:
+  desc: null
+  value: false
+capture_video_freq:
+  desc: null
+  value: 2000
+capture_video_len:
+  desc: null
+  value: 300
+checkpoint:
+  desc: null
+  value: ''
+experiment:
+  desc: null
+  value: ''
+force_render:
+  desc: null
+  value: true
+graphics_device_id:
+  desc: null
+  value: 0
+headless:
+  desc: null
+  value: false
+max_iterations:
+  desc: null
+  value: ''
+multi_gpu:
+  desc: null
+  value: false
+num_envs:
+  desc: null
+  value: ''
+num_subscenes:
+  desc: null
+  value: 4
+num_threads:
+  desc: null
+  value: 4
+physics_engine:
+  desc: null
+  value: physx
+pipeline:
+  desc: null
+  value: gpu
+rl_device:
+  desc: null
+  value: cuda:0
+seed:
+  desc: null
+  value: 42
+sim_device:
+  desc: null
+  value: cuda:0
+solver_type:
+  desc: null
+  value: 1
+task:
+  desc: null
+  value:
+    actions:
+      clip: true
+      clip_value: 1.0
+    asset:
+      fingertip_names: None
+      force_sensor_names:
+      - index_dp
+      - middle_dp
+      - ring_dp
+      - pinky_dp
+      - thumb_dp
+      model_file: faive-integration/model/faive_hand_p0/hand.xml
+      pose_sensor_names:
+      - index_dp
+      - middle_dp
+      - ring_dp
+      - pinky_dp
+      - thumb_dp
+    env:
+      actuated_dof_range_override: None
+      aggregate_mode: true
+      controlFrequencyInv: 1
+      enable_contact_viz: false
+      enable_debug_viz: false
+      env_spacing: 0.2
+      episode_length_s: 10
+      hand_friction: 1.0
+      numActions: 11
+      numEnvs: 4096
+      numObservations: None
+      numStates: None
+      object_start_offset:
+      - 0
+      - -0.15
+      - 0.07
+      object_type:
+      - block
+      pcd: false
+      relative_control_speed_scale: 5.0
+      use_relative_control: false
+    logging:
+      buf_len_s: 0.6
+      measurements:
+      - _observation_dof_position_stat_thumb_mcp
+      - _observation_dof_speed_middle_pip
+      - _observation_dof_force_pinky_mcp
+      - _reward_dist_stat
+      - _observation_fingertip_force_stat_thumb
+      - _observation_obj_angvel_stat
+      num_cols: 3
+      num_rows: 2
+      rt_plt: false
+      units:
+      - rad
+      - rad/s
+      - Nm
+      - '-'
+      - m
+      - m
+    name: RobotHand
+    observations:
+      actor_observations:
+      - dof_position
+      - dof_speed
+      - dof_force
+      - obj_pos
+      - obj_quat
+      - obj_linvel
+      - obj_angvel
+      - goal_pos
+      - goal_quat
+      - goal_quat_diff
+      - pose_sensor_pos
+      - pose_sensor_quat
+      - pose_sensor_linvel
+      - pose_sensor_angvel
+      - force_sensor_force
+      - actions
+      asymmetric_observations: false
+      clip: true
+      clip_value: 5.0
+      noise_scales:
+        actions: 0.05
+        dof_force: 0.1
+        dof_position: 0.05
+        dof_speed: 0.1
+        force_sensor_force: 0.1
+        goal_pos: 0.0
+        goal_quat: 0.0
+        goal_quat_diff: 0.0
+        obj_angvel: 0.02
+        obj_linvel: 0.02
+        obj_pos: 0.01
+        obj_quat: 0.0
+        obj_type: 0.0
+        point_cloud_parallel: 0.001
+        pose_sensor_angvel: 0.1
+        pose_sensor_linvel: 0.1
+        pose_sensor_pos: 0.015
+        pose_sensor_quat: 0.1
+      obs_dims:
+        actions: 11
+        dof_force: 11
+        dof_pos_history: 55
+        dof_pos_target: 11
+        dof_position: 11
+        dof_speed: 11
+        dof_speed_numerical: 11
+        force_sensor_force: 30
+        goal_pos: 3
+        goal_quat: 4
+        goal_quat_diff: 4
+        obj_angvel: 3
+        obj_angvel_numerical: 3
+        obj_linvel: 3
+        obj_linvel_numerical: 3
+        obj_pos: 3
+        obj_pose_history: 35
+        obj_quat: 4
+        pose_sensor_angvel: 15
+        pose_sensor_linvel: 15
+        pose_sensor_pos: 15
+        pose_sensor_quat: 20
+      obs_scales:
+        actions: 1.3
+        dof_force: 5.0
+        dof_pos_history: 2.0
+        dof_position: 2.0
+        dof_speed: 0.25
+        force_sensor_force: 4.0
+        goal_pos: 4.0
+        goal_quat: 2.0
+        goal_quat_diff: 2.0
+        obj_angvel: 0.4
+        obj_linvel: 10.0
+        obj_pos: 4.0
+        obj_pose_history: 3.0
+        obj_quat: 2.0
+        obj_type: 1.0
+        point_cloud_parallel: 1.0
+        pose_sensor_angvel: 0.2
+        pose_sensor_linvel: 3.0
+        pose_sensor_pos: 5.0
+        pose_sensor_quat: 1.0
+      randomize_obs: false
+      student_observations:
+      - dof_position
+      - dof_speed
+      - dof_force
+      - obj_pos
+      - obj_quat
+      - obj_linvel
+      - obj_angvel
+      - goal_pos
+      - goal_quat
+      - goal_quat_diff
+      - actions
+    physics_engine: physx
+    reset_noise:
+      dof_pos: 0.2
+      dof_vel: 0.0
+      object_pos: 0.01
+      object_rot: 0.0
+    rewards:
+      fall_dist_threshold: 0.5
+      scales:
+        acceleration_penalty: 0.0
+        action_penalty: -2.0e-06
+        dist: -0.05
+        drop_penalty: -0.0001
+        reach_goal: 3.0
+        rot: 0.01
+        simple_hand_flat: 0.0
+        speed_penalty: 0.0
+        torque_penalty: 0.0
+      success_tolerance: 0.1
+    sim:
+      dt: 0.01667
+      gravity:
+      - 0
+      - 0
+      - -9.81
+      physx:
+        bounce_threshold_velocity: 0.2
+        contact_collection: 0
+        contact_offset: 0.002
+        default_buffer_size_multiplier: 5.0
+        max_depenetration_velocity: 1000.0
+        max_gpu_contact_pairs: 8388608
+        num_position_iterations: 8
+        num_subscenes: 4
+        num_threads: 4
+        num_velocity_iterations: 0
+        rest_offset: 0.0
+        solver_type: 1
+      substeps: 2
+      up_axis: z
+      use_gpu_pipeline: true
+    task:
+      randomize: false
+    visualization:
+      camera_movement_vector:
+      - 0.005
+      - 0.005
+      - 0.0
+      camera_pos_start:
+      - -0.5
+      - -0.5
+      - 0.6
+      camera_target_start:
+      - 0
+      - 0
+      - 0.5
+      move_camera: false
+task_name:
+  desc: null
+  value: RobotHand
+test:
+  desc: null
+  value: false
+torch_deterministic:
+  desc: null
+  value: false
+train:
+  desc: null
+  value:
+    params:
+      algo:
+        name: a2c_continuous
+      config:
+        bounds_loss_coef: 0.0001
+        clip_value: true
+        critic_coef: 4
+        e_clip: 0.2
+        entropy_coef: 0.0
+        env_name: rlgpu
+        full_experiment_name: FaiveHand
+        gamma: 0.99
+        grad_norm: 1.0
+        horizon_length: 8
+        kl_threshold: 0.016
+        learning_rate: 0.0005
+        lr_schedule: adaptive
+        max_epochs: 5000
+        mini_epochs: 5
+        minibatch_size: 4096
+        mixed_precision: false
+        multi_gpu: false
+        name: FaiveHand
+        normalize_advantage: true
+        normalize_input: true
+        normalize_value: true
+        num_actors: 4096
+        player:
+          deterministic: true
+          games_num: 100000
+          print_stats: true
+        ppo: true
+        print_stats: true
+        reward_shaper:
+          scale_value: 1
+        save_best_after: 100
+        save_frequency: 200
+        schedule_type: standard
+        score_to_win: 100000
+        seq_len: 4
+        tau: 0.95
+        truncate_grads: true
+        value_bootstrap: true
+      load_checkpoint: false
+      load_path: ''
+      model:
+        name: continuous_a2c_logstd
+      network:
+        mlp:
+          activation: elu
+          d2rl: false
+          initializer:
+            name: default
+          regularizer:
+            name: None
+          units:
+          - 512
+          - 512
+          - 256
+          - 128
+        name: actor_critic
+        separate: false
+        space:
+          continuous:
+            fixed_sigma: true
+            mu_activation: None
+            mu_init:
+              name: default
+            sigma_activation: None
+            sigma_init:
+              name: const_initializer
+              val: 0
+      seed: 42
+    student:
+      custom_layers_units:
+      - 512
+      - 256
+      - 128
+      learning_rate: 1.0e-05
+      num_layers_to_copy_from_teacher: 2
+wandb_activate:
+  desc: null
+  value: true
+wandb_entity:
+  desc: null
+  value: ''
+wandb_group:
+  desc: null
+  value: srl_ethz
+wandb_name:
+  desc: null
+  value: FaiveHand
+wandb_project:
+  desc: null
+  value: ''

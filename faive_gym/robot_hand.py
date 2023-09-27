@@ -145,9 +145,6 @@ class RobotHand(VecTask):
 
         # next, define new member variables that make it easier to access the state tensors
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
-        self.hand_default_dof_pos = torch.zeros(
-            self.num_hand_dofs, dtype=torch.float, device=self.device
-        )
         self.hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_dofs
         ]
@@ -1024,11 +1021,16 @@ class RobotHand(VecTask):
             
 
         hand_start_pose = gymapi.Transform()
-        hand_start_pose.p = gymapi.Vec3(0, 0, 0.5)
+        hand_start_pose.p = gymapi.Vec3(self.cfg['env']['hand_start_p'][0],
+                                        self.cfg['env']['hand_start_p'][1],
+                                        self.cfg['env']['hand_start_p'][2])
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3()
         # rotate 200 degrees around x axis to make palm face up, and slightly tilt it downwards
-        hand_start_pose.r = gymapi.Quat(0.9848078, 0, 0, -0.1736482)
+        hand_start_pose.r = gymapi.Quat(self.cfg['env']['hand_start_r'][0],
+                                        self.cfg['env']['hand_start_r'][1],
+                                        self.cfg['env']['hand_start_r'][2],
+                                        self.cfg['env']['hand_start_r'][3])
         [pose_dx, pose_dy, pose_dz] = self.cfg["env"]["object_start_offset"]  # position the object above the palm
 
         object_start_pose.p.x = hand_start_pose.p.x + pose_dx
