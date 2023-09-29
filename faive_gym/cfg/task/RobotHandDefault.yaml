@@ -39,7 +39,6 @@ asset:
 logging:
   # Defines the properties of online logging.
   rt_plt: False
-  env_to_track: 0
   record_dofs: False
   record_observations: False
   record_length: 10

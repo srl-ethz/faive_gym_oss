@@ -241,9 +241,6 @@ class RobotHand(VecTask):
             (self.num_envs, self.student_obs_dim), device=self.device, dtype=torch.float32
         )
 
-        # env to be tracked
-        self.env_to_view = self.cfg["logging"]["env_to_track"]
-
         # joint and sensor readout recording buffers
         self.record_dof_poses = self.cfg["logging"]["record_dofs"]
         self.record_length = self.cfg["logging"]["record_length"]
