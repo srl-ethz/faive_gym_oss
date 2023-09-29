@@ -32,7 +32,7 @@ env:
   # hand start pose position (x, y, z)
   hand_start_p: [0, 0, 0.5]
   # hand start pose quaternion (w, x, y, z)
-  hand_start_r: [0.9848078, 0, 0, -0.1736482] # Default: [0.9848078, 0, 0, -0.1736482]
+  hand_start_r: [0.9848078, 0, 0, -0.1736482]
 
 asset:
   # define in child config- the robot model filepath, relative to assets directory
