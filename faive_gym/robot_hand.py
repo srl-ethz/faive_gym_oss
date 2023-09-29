@@ -416,6 +416,8 @@ class RobotHand(VecTask):
                 print('dof poses saved')
             if self.record_observations:
                 np.save(self.recording_save_path + "_observation.npy", self.observation_recording.numpy(force=True))
+            print("all recordings saved, exiting")
+            exit()
         self.num_recorded_steps += 1
 
     def check_termination(self):
