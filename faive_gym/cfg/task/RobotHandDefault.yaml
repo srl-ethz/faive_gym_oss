@@ -32,8 +32,10 @@ env:
 asset:
   # define in child config- the robot model filepath, relative to assets directory
   model_file: None  
-  # define in child config- body name of each fingertip
-  fingertip_names: None
+  # define in child config- body name that each force and pose sensor are attached to
+  # (usually the fingertips)
+  force_sensor_names: []
+  pose_sensor_names: []
 
 
 logging:
