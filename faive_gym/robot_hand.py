@@ -28,6 +28,7 @@ from isaacgym.torch_utils import (
 )
 import numpy as np
 import os
+import datetime
 import torch
 
 
@@ -239,8 +240,32 @@ class RobotHand(VecTask):
             (self.num_envs, self.student_obs_dim), device=self.device, dtype=torch.float32
         )
 
-        # env to be tracked
-        self.env_to_view = 0
+        # joint and sensor readout recording buffers
+        self.record_dof_poses = self.cfg["logging"]["record_dofs"]
+        self.record_length = self.cfg["logging"]["record_length"]
+        self.record_observations = self.cfg["logging"]["record_observations"]
+        if self.record_dof_poses:
+            self.dof_pose_recording = torch.zeros(
+                (self.num_envs, self.record_length, self.num_actuated_dofs),
+                dtype=torch.float,
+                device=self.device
+            )
+        if self.record_observations:
+            self.observation_recording = torch.zeros(
+                (self.num_envs, self.record_length, self.obs_buf.shape[1]),
+                dtype=torch.float,
+                device=self.device
+            )
+        self.num_recorded_steps = 0
+        timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.recording_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            f'recordings')    
+        if not os.path.exists(self.recording_dir):
+            os.makedirs(self.recording_dir)
+        self.recording_save_path = os.path.join(
+            self.recording_dir,
+            f'{timestamp_str}')
 
     def pre_physics_step(self, actions):
         """
@@ -330,6 +355,11 @@ class RobotHand(VecTask):
         self.check_termination()
         self.compute_reward()
 
+        # if recording is avtivate, register dof poses/observations
+        if self.record_dof_poses or self.record_observations:
+            if self.num_recorded_steps <= self.record_length:
+                self.record_step()
+
         # add rewards_dict to extras
         self.extras.update(self.rewards_dict)
         # log additional curriculum info
@@ -368,6 +398,26 @@ class RobotHand(VecTask):
         # update logger
         if self.cfg["logging"]["rt_plt"]:
             self.get_logs()
+
+    def record_step(self):
+        '''
+        Records the dof and/or observation buffers and saves them to a .npy file.
+        '''
+        print("Recording!")
+        if self.num_recorded_steps < self.record_length:
+            if self.record_dof_poses:
+                self.dof_pose_recording[:,self.num_recorded_steps, :] = self.dof_pos_buffer[:,-self.num_actuated_dofs:]
+            if self.record_observations:
+                self.observation_recording[:,self.num_recorded_steps, :] = self.obs_buf
+        else:
+            if self.record_dof_poses:
+                np.save(self.recording_save_path + "_dof_poses.npy", self.dof_pose_recording.numpy(force=True))
+                print('dof poses saved')
+            if self.record_observations:
+                np.save(self.recording_save_path + "_observation.npy", self.observation_recording.numpy(force=True))
+            print("all recordings saved, exiting")
+            exit()
+        self.num_recorded_steps += 1
 
     def check_termination(self):
         """
