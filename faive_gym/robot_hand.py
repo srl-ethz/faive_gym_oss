@@ -821,9 +821,6 @@ class RobotHand(VecTask):
             assert scale != 0, f"set nonzero observation scale for [{obs_name}] in cfg"
             obs_tensor[:, obs_start:obs_end] = obs * scale
             obs_start = obs_end
-            # if self.cfg["randomize_obs"]:
-            #     # TODO implement randomization with uniform noise distros
-            #     pass
 
     def compute_observations(self):
         """
