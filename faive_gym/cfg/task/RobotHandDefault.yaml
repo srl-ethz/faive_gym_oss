@@ -37,13 +37,18 @@ env:
 asset:
   # define in child config- the robot model filepath, relative to assets directory
   model_file: None  
-  # define in child config- body name of each fingertip
-  fingertip_names: None
+  # define in child config- body name that each force and pose sensor are attached to
+  # (usually the fingertips)
+  force_sensor_names: []
+  pose_sensor_names: []
 
 
 logging:
   # Defines the properties of online logging.
   rt_plt: False
+  record_dofs: False
+  record_observations: False
+  record_length: 10
   buf_len_s: 0.6
   num_rows: 2
   num_cols: 3 #  multiplication of rows and cols should be equal to the 
@@ -88,7 +93,6 @@ actions:
   clip_value: 1.0
 
 observations:
-  randomize_obs: False
   clip: True
   clip_value: 5.0
 
