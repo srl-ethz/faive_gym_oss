@@ -498,7 +498,7 @@ class RobotHand(VecTask):
 
             # set the goal states in the sim
             self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
-                self.goal_states[goal_env_ids, 0:3] + self.goal_displacement_tensor
+                self.goal_states[goal_env_ids, 0:3] + self.goal_visual_displacement_tensor
             )
             self.root_state_tensor[
                 self.goal_object_indices[goal_env_ids], 3:7
@@ -1084,18 +1084,18 @@ class RobotHand(VecTask):
         object_start_pose.p.z = hand_start_pose.p.z + pose_dz
         
     
-        goal_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
+        goal_visual_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
         # the goal object within the rendered scene will be displaced by this amount from the actual goal
-        self.goal_displacement_tensor = to_torch(
+        self.goal_visual_displacement_tensor = to_torch(
             [
-                goal_displacement.x,
-                goal_displacement.y,
-                goal_displacement.z,
+                goal_visual_displacement.x,
+                goal_visual_displacement.y,
+                goal_visual_displacement.z,
             ],
             device=self.device,
         )
         goal_start_pose = gymapi.Transform()
-        goal_start_pose.p = object_start_pose.p + goal_displacement
+        goal_start_pose.p = object_start_pose.p + goal_visual_displacement
 
         # compute aggregate size
         max_agg_bodies = self.num_hand_bodies + 2
