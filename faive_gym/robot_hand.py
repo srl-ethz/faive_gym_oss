@@ -84,8 +84,6 @@ class RobotHand(VecTask):
 
         # define names of relevant body parts
         self.hand_base_name = "root"
-        self.num_force_sensor = len(self.cfg["asset"]["force_sensor_names"])
-        self.num_pose_sensor = len(self.cfg["asset"]["pose_sensor_names"])
         self.sim_device_id = sim_device
 
         super().__init__(config=cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
@@ -146,9 +144,6 @@ class RobotHand(VecTask):
 
         # next, define new member variables that make it easier to access the state tensors
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
-        self.hand_default_dof_pos = torch.zeros(
-            self.num_hand_dofs, dtype=torch.float, device=self.device
-        )
         self.hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_dofs
         ]
@@ -168,8 +163,9 @@ class RobotHand(VecTask):
             :, :, 0:13
         ]
         self.vec_sensor_tensor = gymtorch.wrap_tensor(sensor_tensor).view(
-            self.num_envs, self.num_force_sensor * 6 # each sensor has 6 DOF
+            self.num_envs, -1
         )
+        assert self.vec_sensor_tensor.shape[1] % 6 == 0  # sanity check
         self.num_bodies = self.rigid_body_states.shape[1]
 
         self.num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
@@ -502,7 +498,7 @@ class RobotHand(VecTask):
 
             # set the goal states in the sim
             self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
-                self.goal_states[goal_env_ids, 0:3] + self.goal_displacement_tensor
+                self.goal_states[goal_env_ids, 0:3] + self.goal_visual_displacement_tensor
             )
             self.root_state_tensor[
                 self.goal_object_indices[goal_env_ids], 3:7
@@ -822,9 +818,6 @@ class RobotHand(VecTask):
             assert scale != 0, f"set nonzero observation scale for [{obs_name}] in cfg"
             obs_tensor[:, obs_start:obs_end] = obs * scale
             obs_start = obs_end
-            # if self.cfg["randomize_obs"]:
-            #     # TODO implement randomization with uniform noise distros
-            #     pass
 
     def compute_observations(self):
         """
@@ -1074,11 +1067,16 @@ class RobotHand(VecTask):
             
 
         hand_start_pose = gymapi.Transform()
-        hand_start_pose.p = gymapi.Vec3(0, 0, 0.5)
+        hand_start_pose.p = gymapi.Vec3(self.cfg['env']['hand_start_p'][0],
+                                        self.cfg['env']['hand_start_p'][1],
+                                        self.cfg['env']['hand_start_p'][2])
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3()
         # rotate 200 degrees around x axis to make palm face up, and slightly tilt it downwards
-        hand_start_pose.r = gymapi.Quat(0.9848078, 0, 0, -0.1736482)
+        hand_start_pose.r = gymapi.Quat(self.cfg['env']['hand_start_r'][0],
+                                        self.cfg['env']['hand_start_r'][1],
+                                        self.cfg['env']['hand_start_r'][2],
+                                        self.cfg['env']['hand_start_r'][3])
         [pose_dx, pose_dy, pose_dz] = self.cfg["env"]["object_start_offset"]  # position the object above the palm
 
         object_start_pose.p.x = hand_start_pose.p.x + pose_dx
@@ -1086,18 +1084,18 @@ class RobotHand(VecTask):
         object_start_pose.p.z = hand_start_pose.p.z + pose_dz
         
     
-        goal_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
+        goal_visual_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
         # the goal object within the rendered scene will be displaced by this amount from the actual goal
-        self.goal_displacement_tensor = to_torch(
+        self.goal_visual_displacement_tensor = to_torch(
             [
-                goal_displacement.x,
-                goal_displacement.y,
-                goal_displacement.z,
+                goal_visual_displacement.x,
+                goal_visual_displacement.y,
+                goal_visual_displacement.z,
             ],
             device=self.device,
         )
         goal_start_pose = gymapi.Transform()
-        goal_start_pose.p = object_start_pose.p + goal_displacement
+        goal_start_pose.p = object_start_pose.p + goal_visual_displacement
 
         # compute aggregate size
         max_agg_bodies = self.num_hand_bodies + 2
@@ -1223,7 +1221,6 @@ class RobotHand(VecTask):
         self.reward_scales = class_to_dict(cfg["rewards"]["scales"])
         self.obs_dims = class_to_dict(cfg["observations"]["obs_dims"])
         self.obs_scales = class_to_dict(cfg["observations"]["obs_scales"])
-        self.obs_noise_scales = class_to_dict(cfg["observations"]["noise_scales"])
 
     # ------------- debug visualizer functions -----------------
     def _draw_sphere(self, env_idx, x, y, z, radius=0.05, color=(1, 1, 0)):
@@ -1510,36 +1507,32 @@ class RobotHand(VecTask):
         """
         Returns the pose_sensor position for each pose_sensor
         """
-        num_pose_pos = 3 * self.num_pose_sensor
         pose_sensor_pos = self.pose_sensor_state.clone()[:, :, :3]
         pose_sensor_pos -= self.goal_init_states[:, :3].unsqueeze(1)
-        return pose_sensor_pos.reshape(self.num_envs, num_pose_pos)
+        return pose_sensor_pos.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_quat(self):
         """
         Returns the orientation for each pose_sensor, represented
         by a quaternion
         """
-        num_pose_quats = 4 * self.num_pose_sensor
         pose_sensor_quats = self.pose_sensor_state.clone()[:, :, 3:7]
-        return pose_sensor_quats.reshape(self.num_envs, num_pose_quats)
+        return pose_sensor_quats.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_linvel(self):
         """
         Returns the linear velocity of each pose_sensor
         """
-        num_pose_linvels = 3 * self.num_pose_sensor
         pose_sensor_linvel = self.pose_sensor_state.clone()[:, :, 7:10]
-        return pose_sensor_linvel.reshape(self.num_envs, num_pose_linvels)
+        return pose_sensor_linvel.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_angvel(self):
         """
         Returns the 13-DoF full state (pos, quat, linvel, angvel)
         of each pose_sensor
         """
-        num_pose_angvels = 3 * self.num_pose_sensor
         pose_sensor_angvel = self.pose_sensor_state.clone()[:, :, 10:13]
-        return pose_sensor_angvel.reshape(self.num_envs, num_pose_angvels)
+        return pose_sensor_angvel.reshape(self.num_envs, -1)
 
     def _observation_force_sensor_force(self):
         """
