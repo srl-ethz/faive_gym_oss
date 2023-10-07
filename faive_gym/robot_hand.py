@@ -139,11 +139,13 @@ class RobotHand(VecTask):
         )
     
         self.dof_force_tensor = gymtorch.wrap_tensor(dof_force_tensor).view(
-            self.num_envs, self.num_hand_dofs
+            self.num_envs, -1
         )
 
         # next, define new member variables that make it easier to access the state tensors
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
+        # Since it uses the first self.num_hand_dofs values of the dof state,
+        # this code assumes that the robot hand is the first thing that is loaded into IsaacGym with create_actor().
         self.hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_dofs
         ]
@@ -534,8 +536,8 @@ class RobotHand(VecTask):
             self.hand_dof_pos[env_ids] = dof_pos
             self.hand_dof_vel[env_ids] = dof_vel
             # TODO: may have to set nonactuated to 0
-            self.prev_targets[env_ids] = dof_pos
-            self.cur_targets[env_ids] = dof_pos
+            self.prev_targets[env_ids, :self.num_hand_dofs] = dof_pos
+            self.cur_targets[env_ids, :self.num_hand_dofs] = dof_pos
 
             hand_indices = self.hand_indices[env_ids].to(torch.int32)
             # set the dof targets in the sim
