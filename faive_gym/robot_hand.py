@@ -921,9 +921,9 @@ class RobotHand(VecTask):
         
         # load Faive Hand asset with these options
         asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = True
+        asset_options.fix_base_link = self.cfg["env"]["hand_fix_base"]
         asset_options.collapse_fixed_joints = True
-        asset_options.disable_gravity = True
+        asset_options.disable_gravity = False  # TODO: check that this doesn't affect performance before PR merge!
         asset_options.thickness = 0.001
         asset_options.angular_damping = 0.01
         if self.physics_engine == gymapi.SIM_PHYSX:
@@ -1059,6 +1059,7 @@ class RobotHand(VecTask):
                     asset_files_dict[self.cfg["env"]["object_type"][i]]
                 )
             object_asset_options = gymapi.AssetOptions()
+            object_asset_options.fix_base_link = self.cfg["env"]["object_fix_base"]
             object_asset_list.append(self.gym.load_asset(
                 self.sim, asset_root, object_asset_file, object_asset_options
             ))
