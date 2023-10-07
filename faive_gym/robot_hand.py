@@ -1065,9 +1065,9 @@ class RobotHand(VecTask):
         # load manipulated object and goal assets
         object_asset_list = []
         goal_asset_list = []
-        for i in range(len(self.cfg["env"]["object_type"])):
+        for object_type in self.cfg["env"]["object_type"]:
             object_asset_file = os.path.normpath(
-                    asset_files_dict[self.cfg["env"]["object_type"][i]]
+                    asset_files_dict[object_type]
                 )
             object_asset_options = gymapi.AssetOptions()
             object_asset_options.fix_base_link = self.cfg["env"]["object_fix_base"]
@@ -1162,10 +1162,12 @@ class RobotHand(VecTask):
                 ])
 
             # add object, seg_id = 1
+            # randomly choose which object this environment will have
+            object_index = torch.randint(len(self.cfg["env"]["object_type"]), (1,)).item()
             object_handle = self.gym.create_actor(
-                env_ptr, object_asset_list[i%len(self.cfg["env"]["object_type"])], object_start_pose, "object", i, 0, 1
+                env_ptr, object_asset_list[object_index], object_start_pose, "object", i, 0, 1
             )
-            self.object_type[i][i%len(self.cfg["env"]["object_type"])] = 1
+            self.object_type[i][object_index] = 1
             object_init_states.append(
                 [
                     object_start_pose.p.x,
@@ -1188,7 +1190,7 @@ class RobotHand(VecTask):
             # by setting the fifth argument to not coincide with the others, the goal object does not collide with anything else
             goal_handle = self.gym.create_actor(
                 env_ptr,
-                goal_asset_list[i%len(self.cfg["env"]["object_type"])],
+                goal_asset_list[object_index],
                 goal_start_pose,
                 "goal_object",
                 i + self.num_envs,
