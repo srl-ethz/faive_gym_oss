@@ -555,25 +555,28 @@ class RobotHand(VecTask):
                 len(env_ids),
             )
 
-            # reset object position
-            object_states = self.object_init_states[env_ids].clone()
-            object_states[:, 0:3] += (
-                rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
-            )
-            # reset object rotation
-            object_states[:, 3:7] = randomize_rotation(
-                rand_floats[:, 3],
-                rand_floats[:, 4],
-                self.x_unit_tensor[env_ids],
-                self.y_unit_tensor[env_ids],
-            )
-            
-            # set the object state in the sim
-            self.root_state_tensor[self.object_indices[env_ids]] = object_states
+            # if object is fixed to the base, don't change its pose
+            if not self.cfg["env"]["object_fix_base"]:
+                # reset object position
+                object_states = self.object_init_states[env_ids].clone()
+                object_states[:, 0:3] += (
+                    rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
+                )
+                # reset object rotation
+                object_states[:, 3:7] = randomize_rotation(
+                    rand_floats[:, 3],
+                    rand_floats[:, 4],
+                    self.x_unit_tensor[env_ids],
+                    self.y_unit_tensor[env_ids],
+                )
+                
+                # set the object state in the sim
+                self.root_state_tensor[self.object_indices[env_ids]] = object_states
 
-            reset_indices = torch.cat(
-                (reset_indices, self.object_indices[env_ids].to(torch.int32))
-            )
+                reset_indices = torch.cat(
+                    (reset_indices, self.object_indices[env_ids].to(torch.int32))
+                )
+
             # reset buffers
             self.progress_buf[env_ids] = 0
 
