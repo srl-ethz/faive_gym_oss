@@ -262,7 +262,7 @@ class RobotHand(VecTask):
         clip_actions = self.cfg["actions"]["clip_value"]
         actions = torch.clip(actions, -clip_actions, clip_actions)
         self.actions = actions.to(self.device)
-        # print(f"{self.actions.mean(dim=0)=}\t{self.actions.std(dim=0)=}")
+
         if self.cfg["env"]["use_relative_control"]:
             targets = (
                 self.prev_targets[:, self.actuated_dof_indices]
@@ -303,7 +303,7 @@ class RobotHand(VecTask):
         self.hand_pose = self.root_state_tensor[self.hand_indices, :7]
         self.hand_vel = self.root_state_tensor[self.hand_indices, 7:]
 
-        # compute finger states
+        # get pose sensor states
         self.pose_sensor_state[:] = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
         ]
@@ -337,12 +337,12 @@ class RobotHand(VecTask):
 
         # compute acceleration by taking finite difference of velocity
         self.dof_acceleration = (self.hand_dof_vel - self.prev_hand_dof_vel) / self.control_dt
-        self.prev_hand_dof_vel = self.hand_dof_vel.clone()
+        self.prev_hand_dof_vel[:] = self.hand_dof_vel.clone()
 
         self.check_termination()
         self.compute_reward()
 
-        # if recording is avtivate, register dof poses/observations
+        # if recording is activated, register dof poses/observations
         if self.record_dof_poses or self.record_observations:
             if self.num_recorded_steps <= self.record_length:
                 self.record_step()
@@ -522,7 +522,6 @@ class RobotHand(VecTask):
             )
             self.hand_dof_pos[env_ids] = dof_pos
             self.hand_dof_vel[env_ids] = dof_vel
-            # TODO: may have to set nonactuated to 0
             self.prev_targets[env_ids, :self.num_hand_dofs] = dof_pos
             self.cur_targets[env_ids, :self.num_hand_dofs] = dof_pos
 
@@ -656,10 +655,6 @@ class RobotHand(VecTask):
             )
         else:
             critic_obs_dim = 0
-        # student observations
-        self.student_obs_functions, self.student_obs_dim = collect_observation_functions_compute_dim(
-            self.cfg["observations"]["student_observations"]
-        )
         return actor_obs_dim, critic_obs_dim
 
     def _prepare_logged_functions(self):
@@ -1449,7 +1444,7 @@ class RobotHand(VecTask):
         Returns the observed object pos in the env's
         coordinate system (TODO wrt hand base)
         """
-        obj_pos = self.object_pose.clone()[:, :3]
+        obj_pos = self.object_pos.clone()
         obj_pos -= self.goal_init_states[:, :3]
         return obj_pos
 
@@ -1459,7 +1454,7 @@ class RobotHand(VecTask):
         coordinate system (TODO wrt hand base) represented by
         a quaternion
         """
-        obj_quat = self.object_pose.clone()[:, 3:7]
+        obj_quat = self.object_rot.clone()
         return obj_quat
 
     def _observation_obj_linvel(self):
