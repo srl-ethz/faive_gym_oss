@@ -575,7 +575,7 @@ class RobotHand(VecTask):
             # reset buffers
             self.progress_buf[env_ids] = 0
 
-        if len(goal_env_ids) or len(env_ids):
+        if len(reset_indices) > 0:
             # apparently this can only be called once per step?
             # will return False if command fails
             assert self.gym.set_actor_root_state_tensor_indexed(
