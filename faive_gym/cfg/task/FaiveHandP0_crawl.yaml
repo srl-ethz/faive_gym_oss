@@ -1,0 +1,15 @@
+defaults:
+  - FaiveHandP0
+name: Crawl
+env:
+  hand_fix_base: False
+  hand_start_p: [0, 0, 0.1]
+  hand_start_r: [0, 0, 0, 1]
+
+rewards:
+  fall_dist_threshold: 10.  # practically disabled
+
+observations:
+  # change to include more stuff about body
+  actor_observations: ["dof_position", "dof_speed", "dof_pos_target", 
+                       "actions"]

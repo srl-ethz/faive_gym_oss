@@ -48,7 +48,9 @@ from isaacgymenvs.utils.utils import set_np_formatting, set_seed
 # register custom tasks for faive_gym here
 from isaacgymenvs.tasks import isaacgym_task_map
 from robot_hand import RobotHand
+from faive_gym.tasks.crawl import Crawl
 isaacgym_task_map["RobotHand"] = RobotHand
+isaacgym_task_map["Crawl"] = Crawl
 
 ## OmegaConf & Hydra Config
 
