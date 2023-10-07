@@ -144,15 +144,14 @@ class RobotHand(VecTask):
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
         # Since it uses the first self.num_hand_dofs values of the dof state,
         # this code assumes that the robot hand is the first thing that is loaded into IsaacGym with create_actor().
-        self.hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
+        hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
             :, : self.num_hand_dofs
         ]
         
-        self.hand_dof_pos = self.hand_dof_state[..., 0]
-        self.hand_dof_vel = self.hand_dof_state[..., 1]
-        self.prev_hand_dof_vel = torch.zeros_like(self.hand_dof_state[..., 1])
+        self.hand_dof_pos = hand_dof_state[..., 0]
+        self.hand_dof_vel = hand_dof_state[..., 1]
+        self.prev_hand_dof_vel = torch.zeros_like(hand_dof_state[..., 1])
         
-        self.goal_pose = self.goal_states[:, 0:7]
         self.goal_pos = self.goal_states[:, 0:3]
         self.goal_rot = self.goal_states[:, 3:7]
 
@@ -163,15 +162,14 @@ class RobotHand(VecTask):
             self.num_envs, -1
         )
         assert self.vec_sensor_tensor.shape[1] % 6 == 0  # sanity check
-        self.num_bodies = self.rigid_body_states.shape[1]
 
-        self.num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
+        num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
         # current position control targets for each joint (joints with no actuators should be set to 0)
         self.cur_targets = torch.zeros(
-            (self.num_envs, self.num_dofs), dtype=torch.float, device=self.device
+            (self.num_envs, num_dofs), dtype=torch.float, device=self.device
         )
         self.prev_targets = torch.zeros(
-            (self.num_envs, self.num_dofs), dtype=torch.float, device=self.device
+            (self.num_envs, num_dofs), dtype=torch.float, device=self.device
         )
 
         self.x_unit_tensor = to_torch(
@@ -226,14 +224,6 @@ class RobotHand(VecTask):
             device=self.device,
         )
 
-        self.debug_obs_buf = torch.zeros_like(self.obs_buf)
-        
-        # obs_buf is initialized in parent class but set the buffer for student observation here
-        # this is trained in a separate framework from rl_games, so it is treated a bit differently from the other observations
-        self.student_obs_buf = torch.zeros(
-            (self.num_envs, self.student_obs_dim), device=self.device, dtype=torch.float32
-        )
-
         # joint and sensor readout recording buffers
         self.record_dof_poses = self.cfg["logging"]["record_dofs"]
         self.record_length = self.cfg["logging"]["record_length"]
@@ -252,13 +242,13 @@ class RobotHand(VecTask):
             )
         self.num_recorded_steps = 0
         timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.recording_dir = os.path.join(
+        recording_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             f'recordings')    
-        if not os.path.exists(self.recording_dir):
-            os.makedirs(self.recording_dir)
+        if not os.path.exists(recording_dir):
+            os.makedirs(recording_dir)
         self.recording_save_path = os.path.join(
-            self.recording_dir,
+            recording_dir,
             f'{timestamp_str}')
 
     def pre_physics_step(self, actions):
@@ -314,7 +304,7 @@ class RobotHand(VecTask):
         self.hand_vel = self.root_state_tensor[self.hand_indices, 7:]
 
         # compute finger states
-        self.pose_sensor_state = self.rigid_body_states[:, self.pose_sensor_handles][
+        self.pose_sensor_state[:] = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
         ]
 
@@ -840,13 +830,6 @@ class RobotHand(VecTask):
             clip_obs = self.cfg["observations"]["clip_value"]
             self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
             self.states_buf = torch.clip(self.states_buf, -clip_obs, clip_obs)
-    
-    def compute_student_observations(self):
-        """
-        computes the observations sent to student
-        """
-        self._fill_obs(self.student_obs_buf, self.cfg["observations"]["student_observations"], self.student_obs_functions)
-
 
     def get_logs(self):
         """
@@ -1509,7 +1492,7 @@ class RobotHand(VecTask):
         """
         Returns the goal object position
         """
-        goal_pos = self.goal_pose.clone()[:, :3]
+        goal_pos = self.goal_pos.clone()
         goal_pos -= self.goal_init_states[:, :3]
         return goal_pos
 
@@ -1518,7 +1501,7 @@ class RobotHand(VecTask):
         Returns the goal object orientation, represented by 
         a quaternion
         """
-        goal_quat = self.goal_pose.clone()[:, 3:7]
+        goal_quat = self.goal_rot.clone()
         return goal_quat
 
     def _observation_goal_quat_diff(self):
