@@ -82,8 +82,6 @@ class RobotHand(VecTask):
         # overwrite config to have the correct number of observations for actor and critic
         self.cfg["env"]["numObservations"], self.cfg["env"]["numStates"] = self._prepare_observations()
 
-        # define names of relevant body parts
-        self.hand_base_name = "root"
         self.sim_device_id = sim_device
 
         super().__init__(config=cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
@@ -158,9 +156,6 @@ class RobotHand(VecTask):
         self.goal_pos = self.goal_states[:, 0:3]
         self.goal_rot = self.goal_states[:, 3:7]
 
-        # Add base position for debugging/etc.
-        self.hand_base_pos = self.rigid_body_states[:, self.hand_base_handle][:, 0:3]
-        
         self.pose_sensor_state = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
         ]
@@ -314,7 +309,10 @@ class RobotHand(VecTask):
         self.object_rot = self.root_state_tensor[self.object_indices, 3:7]
         self.object_linvel = self.root_state_tensor[self.object_indices, 7:10]
         self.object_angvel = self.root_state_tensor[self.object_indices, 10:13]
-        
+
+        self.hand_pose = self.root_state_tensor[self.hand_indices, :7]
+        self.hand_vel = self.root_state_tensor[self.hand_indices, 7:]
+
         # compute finger states
         self.pose_sensor_state = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
@@ -373,8 +371,7 @@ class RobotHand(VecTask):
         if not self.headless and self.cfg["env"]["enable_debug_viz"]:
             self.gym.clear_lines(self.viewer)
             for i in range(self.num_envs):
-                hand_pos = self.hand_base_pos.cpu().numpy()
-                x, y, z = hand_pos[i]
+                x, y, z = self.hand_pose[i, :3].cpu().numpy()
                 self._draw_sphere(i, x, y, z)
                 self._draw_frame_axes(i, self.goal_pos[i], self.goal_rot[i])
                 self._draw_frame_axes(i, self.object_pos[i], self.object_rot[i])
@@ -1057,11 +1054,6 @@ class RobotHand(VecTask):
         for fs_handle in force_sensor_handles:
             self.gym.create_asset_force_sensor(hand_asset, fs_handle, sensor_pose)
     
-        hand_base = self.gym.find_asset_rigid_body_index(
-            hand_asset, self.hand_base_name
-        )
-        
-
         # load manipulated object and goal assets
         object_asset_list = []
         goal_asset_list = []
@@ -1239,10 +1231,6 @@ class RobotHand(VecTask):
             goal_object_indices, dtype=torch.long, device=self.device
         )
 
-        self.hand_base_handle = to_torch(
-            hand_base, dtype=torch.long, device=self.device
-        )
-        
         self.force_sensor_handles = to_torch(
             force_sensor_handles, dtype=torch.long, device=self.device
         )
