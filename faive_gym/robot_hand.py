@@ -576,7 +576,15 @@ class RobotHand(VecTask):
                 reset_indices = torch.cat(
                     (reset_indices, self.object_indices[env_ids].to(torch.int32))
                 )
-
+            
+            if not self.cfg["env"]["hand_fix_base"]:
+                hand_states = self.hand_init_states[env_ids].clone()
+                # don't implement reset randomization for now...
+                self.root_state_tensor[self.hand_indices[env_ids]] = hand_states
+                reset_indices = torch.cat(
+                    (reset_indices, self.hand_indices[env_ids].to(torch.int32))
+                )
+            
             # reset buffers
             self.progress_buf[env_ids] = 0
 
@@ -1108,6 +1116,7 @@ class RobotHand(VecTask):
         max_agg_shapes = self.num_hand_shapes + 2
 
         self.envs = []
+        hand_init_states = []
         object_init_states = []
         hand_indices = []
         object_indices = []
@@ -1134,6 +1143,23 @@ class RobotHand(VecTask):
             # set the first body to be black (base of the hand) to match real robot
             self.gym.set_rigid_body_color(
                 env_ptr, actor_handle, 0, gymapi.MESH_VISUAL, gymapi.Vec3(0.25, 0.25, 0.25))
+
+            hand_init_states.append(
+                [
+                    hand_start_pose.p.x,
+                    hand_start_pose.p.y,
+                    hand_start_pose.p.z,
+                    hand_start_pose.r.x,
+                    hand_start_pose.r.y,
+                    hand_start_pose.r.z,
+                    hand_start_pose.r.w,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ])
 
             # add object, seg_id = 1
             object_handle = self.gym.create_actor(
@@ -1189,7 +1215,10 @@ class RobotHand(VecTask):
 
             self.envs.append(env_ptr)
         
-        # used for resetting the object
+        # used for resetting the hand and object
+        self.hand_init_states = to_torch(
+            hand_init_states, dtype=torch.float, device=self.device
+        ).view(self.num_envs, 13)
         self.object_init_states = to_torch(
             object_init_states, dtype=torch.float, device=self.device
         ).view(self.num_envs, 13)
