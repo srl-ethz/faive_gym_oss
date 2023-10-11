@@ -144,13 +144,17 @@ class RobotHand(VecTask):
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
         # Since it uses the first self.num_hand_dofs values of the dof state,
         # this code assumes that the robot hand is the first thing that is loaded into IsaacGym with create_actor().
-        hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
-            :, : self.num_hand_dofs
-        ]
+        dof_state = self.dof_state.view(self.num_envs, -1, 2)
+        hand_dof_state = dof_state[:, :self.num_hand_dofs]
         
         self.hand_dof_pos = hand_dof_state[..., 0]
         self.hand_dof_vel = hand_dof_state[..., 1]
         self.prev_hand_dof_vel = torch.zeros_like(hand_dof_state[..., 1])
+
+        object_goal_dof_state = dof_state[:, self.num_hand_dofs:]
+        assert object_goal_dof_state.shape[1] == 2 * self.num_object_dofs
+        self.object_goal_dof_pos = object_goal_dof_state[..., 0]
+        self.object_goal_dof_vel = object_goal_dof_state[..., 1]
         
         self.goal_pos = self.goal_states[:, 0:3]
         self.goal_rot = self.goal_states[:, 3:7]
@@ -505,40 +509,53 @@ class RobotHand(VecTask):
                 -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 2 + 5), self.device
             )
             # reset hand state
-            dof_range = self.hand_dof_upper_limits - self.hand_dof_lower_limits
-            dof_pos = (
+            hand_dof_range = self.hand_dof_upper_limits - self.hand_dof_lower_limits
+            hand_dof_pos = (
                 self.hand_dof_default_pos
                 + rand_floats[:, 5 : 5 + self.num_hand_dofs]
                 * self.cfg["reset_noise"]["dof_pos"]
-                * dof_range
+                * hand_dof_range
             )
-            dof_pos = torch.clamp(
-                dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits
+            hand_dof_pos = torch.clamp(
+                hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits
             )
-            dof_vel = (
+            hand_dof_vel = (
                 self.hand_dof_default_vel
                 + rand_floats[:, 5 + self.num_hand_dofs : 5 + self.num_hand_dofs * 2]
                 * self.cfg["reset_noise"]["dof_vel"]
             )
-            self.hand_dof_pos[env_ids] = dof_pos
-            self.hand_dof_vel[env_ids] = dof_vel
-            self.prev_targets[env_ids, :self.num_hand_dofs] = dof_pos
-            self.cur_targets[env_ids, :self.num_hand_dofs] = dof_pos
+            self.hand_dof_pos[env_ids] = hand_dof_pos
+            self.hand_dof_vel[env_ids] = hand_dof_vel
+            self.prev_targets[env_ids, :self.num_hand_dofs] = hand_dof_pos
+            self.cur_targets[env_ids, :self.num_hand_dofs] = hand_dof_pos
+
+            # reset object dof state (just set them to zero for now)
+            self.object_goal_dof_pos[env_ids] = 0
+            self.object_goal_dof_vel[env_ids] = 0
 
             hand_indices = self.hand_indices[env_ids].to(torch.int32)
+            object_indices = self.object_indices[env_ids].to(torch.int32)
+            goal_indices = self.goal_object_indices[env_ids].to(torch.int32)
+            if self.num_object_dofs > 0:
+                reset_dof_indices = torch.cat(
+                    (hand_indices, object_indices, goal_indices)
+                ).to(torch.int32)
+            else:
+                # do not set the object dofs if there are no object dofs (will cause an error otherwise)
+                reset_dof_indices = hand_indices
             # set the dof targets in the sim
             self.gym.set_dof_position_target_tensor_indexed(
                 self.sim,
                 gymtorch.unwrap_tensor(self.prev_targets),
                 gymtorch.unwrap_tensor(hand_indices),
-                len(env_ids),
+                len(hand_indices),
             )
             # set the dof states in the sim
             self.gym.set_dof_state_tensor_indexed(
                 self.sim,
                 gymtorch.unwrap_tensor(self.dof_state),
-                gymtorch.unwrap_tensor(hand_indices),
-                len(env_ids),
+                gymtorch.unwrap_tensor(reset_dof_indices),
+                len(reset_dof_indices),
             )
 
             # if object is fixed to the base, don't change its pose
@@ -1049,6 +1066,19 @@ class RobotHand(VecTask):
             goal_asset_list.append(self.gym.load_asset(
                 self.sim, asset_root, object_asset_file, object_asset_options
             ))
+            if len(object_asset_list) == 1:
+                self.num_object_bodies = self.gym.get_asset_rigid_body_count(object_asset_list[-1])
+                self.num_object_shapes = self.gym.get_asset_rigid_shape_count(object_asset_list[-1])
+                self.num_object_dofs = self.gym.get_asset_dof_count(object_asset_list[-1])
+            else:
+                # check that all object assets are the same
+                assert self.num_object_bodies == self.gym.get_asset_rigid_body_count(object_asset_list[-1])
+                assert self.num_object_shapes == self.gym.get_asset_rigid_shape_count(object_asset_list[-1])
+                assert self.num_object_dofs == self.gym.get_asset_dof_count(object_asset_list[-1])
+            # check that goal assets are the same as object assets
+            assert self.num_object_bodies == self.gym.get_asset_rigid_body_count(goal_asset_list[-1])
+            assert self.num_object_shapes == self.gym.get_asset_rigid_shape_count(goal_asset_list[-1])
+            assert self.num_object_dofs == self.gym.get_asset_dof_count(goal_asset_list[-1])
             
 
         hand_start_pose = gymapi.Transform()
