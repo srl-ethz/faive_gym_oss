@@ -894,6 +894,7 @@ class RobotHand(VecTask):
             "stell_dodeca": "objects_dext_manip/stell_dodeca.urdf",
             "stairs": "objects_dext_manip/stairs.urdf",
             "block_pyr": "objects_dext_manip/block_pyr.urdf",
+            "simple_book": "mjcf/simple_book.xml",
         }
         for i in range(len(self.cfg["env"]["object_type"])):
             try:
