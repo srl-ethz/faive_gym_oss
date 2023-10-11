@@ -1113,8 +1113,8 @@ class RobotHand(VecTask):
         goal_start_pose.p = object_start_pose.p + goal_visual_displacement
 
         # compute aggregate size
-        max_agg_bodies = self.num_hand_bodies + 2
-        max_agg_shapes = self.num_hand_shapes + 2
+        max_agg_bodies = self.num_hand_bodies + 2 * self.num_object_bodies
+        max_agg_shapes = self.num_hand_shapes + 2 * self.num_object_shapes
 
         self.envs = []
         hand_init_states = []
