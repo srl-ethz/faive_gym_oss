@@ -81,6 +81,19 @@ task.env.episodeLength=400 | example of how to modify the values defined in isaa
 ## using the Python `wandb` package for Weights and Biases
 when using the Weights & Biases feature, there might be an error which requires you to install xvfb and ffmpeg, with `sudo apt install xvfb` and `sudo apt install ffmpeg`.
 
+## Loading your own robotic hand model
+1. Prepare a MJCF (URDF) model of your robot. **Even models that can be perfectly simulated in MuJoCo might not work in IsaacGym as IsaacGym's model conversion script does not support all modeling features**, so it might require some trial and error to adjust the model file before you can actually load it into IsaacGym.
+1. within *faive_gym/cfg/task* and *faive_gym/cfg/train* directory, respectively from *FaiveHandP0.yaml* and *FaiveHandP0PPO.yaml* to create *your_robot_name.yaml* and *your_robot_namePPO.yaml* files, 
+1. Modify the cfg files for your own robot in *your_robot_name.yaml*:
+    - change `asset.model_file` to the path of your model file, relative to the assets/ directory.
+    - `env.numActions` and the `observation.obs_dims` must be set with the degrees of freedom (DoF) for your robot
+	- `observations.obs_dims.dof_pos_history` must be set to a multiple of the DoFs of your robot.
+	- `asset.force_sensor_names` and `asset.pose_sensor_names` should be set to the name of the bodies at the fingertip. They are the fingertip force and pose sensors. (technically, the sensors can be placed on any body, but placing them on the fingertip would make the most sense for dexterous tasks)
+	- if the number of fingers on your hand is not 5, change `observations.obs_dims.pose_sensor_*` and `observations.obs_dims.force_sensor_force` to \[number of fingers\] \* \[sensor dimension\]
+1. try running train.py with your new environment, with `python train.py num_envs=2 task=your_robot_name`
+    Take a good look at the error statements in the terminal and the model that appears in the window to make sure it's loaded correctly.
+1. If you want to set it up for the cube rotation task, adjust the robot pose with `env.hand_start_p` and `env.hand_start_r` so that the cube falls onto the robot's palm. You can also try to adjust some other parameters defined in RobotHandDefault.yaml to suit your usage (try not to edit RobotHandDefault, just override the parameters values in your own yaml file)
+
 ## Program Structure
 Grossly oversimplified diagram of how the data flows in this program after train.py (round nodes indocate programs in rl_games)
 
