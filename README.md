@@ -1,5 +1,5 @@
 # faive_gym
-IsaacGym environments for the Faive Hand, intended to be used together with IsaacGymEnvs
+IsaacGym environments for the Faive Hand (and also somewhat easily extendable to other robotic hands), intended to be used together with [IsaacGymEnvs](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs)
 ![](img/isaacgym_preview.gif)
 
 1. Install Isaac Gym
@@ -46,8 +46,7 @@ IsaacGym environments for the Faive Hand, intended to be used together with Isaa
 		sudo apt install python3-tk
 		```
 1. Install this repository (faive_gym)
-	1. If you haven't already, [add the SSH public key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
-    1. Clone this repository
+    1. Clone this repository (if you will clone the internal closed source repo, you will have to [add the SSH public key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account))
 		```bash
 		git clone https://github.com/srl-ethz/faive_gym_oss
 		# if you want to use the internal closed source repo, instead run
@@ -64,22 +63,36 @@ The default Faive Hand training environment can be run with
 cd /path/to/faive_gym/faive_gym
 python train.py task=FaiveHandP0
 ```
+
 ## Additional Arguments
-Some additional arguments that can be appended; This has the same effect as modifying the yaml files in isaacgymenvs/cfg directory, and could be used to easily change hyperparameters across runs. (check IsaacGymEnvs documentation for more)
+Some additional arguments that can be appended; This has the same effect as modifying the yaml files in faive_gym/cfg directory, and could be used to easily change hyperparameters across runs. (check IsaacGymEnvs documentation for more)
 
 arguments | meaning
 --- | --- 
-capture_video=True force_render=False | occasionaly capture video while training and save it to videos/ (also uploads to W&B, if that is enabled)
-capture_video_freq=2000 capture_video_len=200 | (use together with capture_video=True) adjust the frequency / length of recording (save a video of length 200 steps every 2000 steps).
+capture_video=True force_render=False | occasionaly capture video while training and save it to videos/ (also uploads to W&B, if that is enabled). This also disables the windows from popping up.
+capture_video_freq=2000 capture_video_len=200 | adjust the frequency / length of recording (save a video of length 200 steps every 2000 steps). If this is not set when the above arguments are set, the default settings for video capture will be used.
 num_envs=8 | try with fewer robot instances (useful for debugging)
 headless=True | run without GUI
 test=True | no training, just rollout policy
-checkpoint=runs/FaiveHand/nn/*.pth | load from checkpoint (combine with `test=True` to test out trained policy)
+checkpoint=runs/FaiveHand/nn/*.pth | load from checkpoint (combine with `test=True` to test out trained policy without training)
 wandb_activate=True wandb_group=srl_ethz wandb_project=your_project_name wandb_name=your_run_name | log this run in Weights & Biases
-task.env.episodeLength=400 | example of how to modify the values defined in isaacgymenvs/cfg/task/FaiveHand.yaml
+task.env.env_spacing=0.7 | Any value defined in the config yaml files can be modified. This is an example of how to modify the values defined in faive_gym/cfg/task/RobotHandDefault.yaml
 
 ## using the Python `wandb` package for Weights and Biases
 when using the Weights & Biases feature, there might be an error which requires you to install xvfb and ffmpeg, with `sudo apt install xvfb` and `sudo apt install ffmpeg`.
+
+## Loading your own robotic hand model
+1. Prepare a MJCF (URDF) model of your robot. **Even models that can be perfectly simulated in MuJoCo might not work in IsaacGym as IsaacGym's model conversion script does not support all modeling features**, so it might require some trial and error to adjust the model file before you can actually load it into IsaacGym.
+1. within *faive_gym/cfg/task* and *faive_gym/cfg/train* directory, respectively from *FaiveHandP0.yaml* and *FaiveHandP0PPO.yaml* to create *your_robot_name.yaml* and *your_robot_namePPO.yaml* files, 
+1. Modify the cfg files for your own robot in *your_robot_name.yaml*:
+    - change `asset.model_file` to the path of your model file, relative to the assets/ directory.
+    - `env.numActions` and the `observation.obs_dims` must be set with the degrees of freedom (DoF) for your robot
+	- `observations.obs_dims.dof_pos_history` must be set to a multiple of the DoFs of your robot.
+	- `asset.force_sensor_names` and `asset.pose_sensor_names` should be set to the name of the bodies at the fingertip. They are the fingertip force and pose sensors. (technically, the sensors can be placed on any body, but placing them on the fingertip would make the most sense for dexterous tasks)
+	- if the number of fingers on your hand is not 5, change `observations.obs_dims.pose_sensor_*` and `observations.obs_dims.force_sensor_force` to \[number of fingers\] \* \[sensor dimension\]
+1. try running train.py with your new environment, with `python train.py num_envs=2 task=your_robot_name`
+    Take a good look at the error statements in the terminal and the model that appears in the window to make sure it's loaded correctly.
+1. If you want to set it up for the cube rotation task, adjust the robot pose with `env.hand_start_p` and `env.hand_start_r` so that the cube falls onto the robot's palm. You can also try to adjust some other parameters defined in RobotHandDefault.yaml to suit your usage (try not to edit RobotHandDefault, just override the parameters values in your own yaml file)
 
 ## Program Structure
 Grossly oversimplified diagram of how the data flows in this program after train.py (round nodes indocate programs in rl_games)
@@ -87,8 +100,8 @@ Grossly oversimplified diagram of how the data flows in this program after train
 ```mermaid
 flowchart
     train.py --> torch_runner([rl_games.torch_runner.py]) --> a2c_common([rl_games.a2c_common.py]) -- vecenv --> robot_hand[tasks/robot_hand.py:RobotHand]
-    robot_hand --load config--> cfg/task/FaiveHandP0.yaml --load default config--> cfg/task/RobotHand.yaml
-	a2c_common --load config--> cfg/train/FaiveHandP0PPO.yaml --load default config--> cfg/train/RobotHandPPO.yaml
+    robot_hand --load config--> cfg/task/FaiveHandP0.yaml --load default config--> cfg/task/RobotHandDefault.yaml
+	a2c_common --load config--> cfg/train/FaiveHandP0PPO.yaml --load default config--> cfg/train/RobotHandDefaultPPO.yaml
 ```
 
 # Export a trained RL policy

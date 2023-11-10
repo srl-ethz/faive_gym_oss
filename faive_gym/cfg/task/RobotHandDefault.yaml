@@ -29,11 +29,18 @@ env:
   object_start_offset: [0, 0, 0]  # position of object initial position, relative to the hand
   actuated_dof_range_override: None  # optionally use a smaller joint range of actuation, helpful if the real robot can't achieve the full range of motion
 
+  # hand start pose position (x, y, z)
+  hand_start_p: [0, 0, 0.5]
+  # hand start pose quaternion (w, x, y, z)
+  hand_start_r: [0.9848078, 0, 0, -0.1736482]
+
 asset:
   # define in child config- the robot model filepath, relative to assets directory
   model_file: None  
-  # define in child config- body name of each fingertip
-  fingertip_names: None
+  # define in child config- body name that each force and pose sensor are attached to
+  # (usually the fingertips)
+  force_sensor_names: []
+  pose_sensor_names: []
 
 
 logging:
@@ -86,7 +93,6 @@ actions:
   clip_value: 1.0
 
 observations:
-  randomize_obs: False
   clip: True
   clip_value: 5.0
 
@@ -95,8 +101,12 @@ observations:
   # this is used to determine the size of the observation buffer
 
   obs_scales:
-    # define how much each observation should be scaled
-    # if not given, the default value value of 1.0 is used
+    # Optionally define how much each observation should be scaled
+    # if not given, the default value value of 1.0 is used.
+    # Even if the scale is not specified here,
+    # rl_games has a running normalizer (rl_games/algos_torch/running_mean_std.py)
+    # which tries to normalize observations before sending them to the network.
+    # Tuning this will probably not drastically improve the performance!
     dof_position: 2.0
     dof_speed: 0.25
     dof_force: 5.0
@@ -117,25 +127,6 @@ observations:
     dof_pos_history: 2.0
     obj_type: 1.0
 
-  noise_scales:
-    dof_position: 0.05
-    dof_speed: 0.1
-    dof_force: 0.1
-    obj_pos: 0.01
-    obj_quat: 0.0
-    obj_linvel: 0.02
-    obj_angvel: 0.02
-    goal_pos: 0.0
-    goal_quat: 0.0
-    goal_quat_diff: 0.0
-    pose_sensor_pos: 0.015
-    pose_sensor_quat: 0.1
-    pose_sensor_linvel: 0.1
-    pose_sensor_angvel: 0.1
-    force_sensor_force: 0.1
-    obj_type: 0.0
-    
-    actions: 0.05
 
   # if True, feed different observations to the actor and critic (e.g. when you want to send privileged information to the critic)
   # otherwise, the actor_observations is used for both actor and critic
