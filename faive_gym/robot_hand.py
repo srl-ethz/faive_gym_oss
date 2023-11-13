@@ -1072,7 +1072,6 @@ class RobotHand(VecTask):
                                         self.cfg['env']['hand_start_p'][2])
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3()
-        # rotate 200 degrees around x axis to make palm face up, and slightly tilt it downwards
         hand_start_pose.r = gymapi.Quat(self.cfg['env']['hand_start_r'][0],
                                         self.cfg['env']['hand_start_r'][1],
                                         self.cfg['env']['hand_start_r'][2],
