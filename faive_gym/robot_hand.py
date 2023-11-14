@@ -464,6 +464,27 @@ class RobotHand(VecTask):
             self.y_unit_tensor[env_ids],
         )
     
+    def reset_object_states(self, env_ids):
+        """
+        reset the object states to the initial states for env_ids by setting self.resetted_object_states (which has shape (len(env_ids), 13))
+        this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
+        """
+        rand_floats = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), 5), self.device
+        )
+        # reset object position
+        self.resetted_object_states = self.object_init_states[env_ids].clone()
+        self.resetted_object_states[:, 0:3] += (
+            rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
+        )
+        # reset object rotation
+        self.resetted_object_states[:, 3:7] = randomize_rotation(
+            rand_floats[:, 3],
+            rand_floats[:, 4],
+            self.x_unit_tensor[env_ids],
+            self.y_unit_tensor[env_ids],
+        )
+
     def custom_reset(self):
         """
         if you want to set up your own specific code to override the pose of objects, do so here
@@ -513,13 +534,13 @@ class RobotHand(VecTask):
         if len(env_ids) > 0:
             # draw rand floats
             rand_floats = torch_rand_float(
-                -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 2 + 5), self.device
+                -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 2), self.device
             )
             # reset hand state
             dof_range = self.hand_dof_upper_limits - self.hand_dof_lower_limits
             dof_pos = (
                 self.hand_dof_default_pos
-                + rand_floats[:, 5 : 5 + self.num_hand_dofs]
+                + rand_floats[:, : self.num_hand_dofs]
                 * self.cfg["reset_noise"]["dof_pos"]
                 * dof_range
             )
@@ -528,7 +549,7 @@ class RobotHand(VecTask):
             )
             dof_vel = (
                 self.hand_dof_default_vel
-                + rand_floats[:, 5 + self.num_hand_dofs : 5 + self.num_hand_dofs * 2]
+                + rand_floats[:, self.num_hand_dofs : self.num_hand_dofs * 2]
                 * self.cfg["reset_noise"]["dof_vel"]
             )
             self.hand_dof_pos[env_ids] = dof_pos
@@ -553,21 +574,10 @@ class RobotHand(VecTask):
                 len(env_ids),
             )
 
-            # reset object position
-            object_states = self.object_init_states[env_ids].clone()
-            object_states[:, 0:3] += (
-                rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
-            )
-            # reset object rotation
-            object_states[:, 3:7] = randomize_rotation(
-                rand_floats[:, 3],
-                rand_floats[:, 4],
-                self.x_unit_tensor[env_ids],
-                self.y_unit_tensor[env_ids],
-            )
-            
+            # set self.resetted_object_states in this function
+            self.reset_object_states(env_ids)
             # set the object state in the sim
-            self.root_state_tensor[self.object_indices[env_ids]] = object_states
+            self.root_state_tensor[self.object_indices[env_ids]] = self.resetted_object_states
 
             reset_indices = torch.cat(
                 (reset_indices, self.object_indices[env_ids].to(torch.int32))
