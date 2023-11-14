@@ -321,7 +321,7 @@ class RobotHand(VecTask):
         # update the history buffers
         self.obj_pose_buffer[:,:-7] = self.obj_pose_buffer[:,7:]
         self.obj_pose_buffer[:,-7:] = self.object_pose.clone()
-        self.obj_pose_buffer[:,-7:-4] -= self.goal_init_states[:, :3]  # try to have zero mean
+        self.obj_pose_buffer[:,-7:-4] -= self.object_init_states[:, :3]  # try to have zero mean
 
         self.dof_pos_buffer[:,:-self.num_actuated_dofs] = self.dof_pos_buffer[:,self.num_actuated_dofs:]
         self.dof_pos_buffer[:,-self.num_actuated_dofs:] = unscale(
@@ -446,16 +446,18 @@ class RobotHand(VecTask):
 
     def reset_goal_states(self, env_ids):
         """
-        reset the goal states to the initial states for env_ids by overwriting self.goal_states.
+        reset the goal states for env_ids
+        update self.goal_states (shape (num_envs, 7))
+        and set self.resetted_visual_goal_states (sets the state of the goal object visualization in IsaacGym and has shape (len(env_ids), 7))
+        the visual goal states is set as a separate tensor from self.goal_states so that, for example, the visualized goal can be shown in a different location from the actual goal position
         this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
         """
         rand_floats_goal = torch_rand_float(
-            -1.0, 1.0, (len(env_ids), 3), self.device
+            -1.0, 1.0, (len(env_ids), 2), self.device
         )
-        # reset goal position
-        self.goal_states[env_ids, 0:3] = self.goal_init_states[
-            env_ids, 0:3
-        ]
+        self.goal_states[env_ids] = self.object_init_states[env_ids].clone()
+        # lower it to match the height of the hand
+        self.goal_states[env_ids, 2] -= 0.04
         # reset goal orientation
         self.goal_states[env_ids, 3:7] = randomize_rotation(
             rand_floats_goal[:, 0],
@@ -463,6 +465,13 @@ class RobotHand(VecTask):
             self.x_unit_tensor[env_ids],
             self.y_unit_tensor[env_ids],
         )
+        self.resetted_visual_goal_states = self.goal_states[env_ids].clone()
+        goal_visual_displacement = [-0.2, -0.06, 0.08]
+        # the goal object within the rendered scene will be displaced by this amount from the actual goal
+        self.resetted_visual_goal_states[:, 0] += goal_visual_displacement[0]
+        self.resetted_visual_goal_states[:, 1] += goal_visual_displacement[1]
+        self.resetted_visual_goal_states[:, 2] += goal_visual_displacement[2]
+
     
     def reset_object_states(self, env_ids):
         """
@@ -516,17 +525,8 @@ class RobotHand(VecTask):
         if len(goal_env_ids) > 0:
             # overwrite self.goal_states in this function
             self.reset_goal_states(goal_env_ids)
-
             # set the goal states in the sim
-            self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
-                self.goal_states[goal_env_ids, 0:3] + self.goal_visual_displacement_tensor
-            )
-            self.root_state_tensor[
-                self.goal_object_indices[goal_env_ids], 3:7
-            ] = self.goal_states[goal_env_ids, 3:7]
-            self.root_state_tensor[
-                self.goal_object_indices[goal_env_ids], 7:13
-            ] = 0  # zero velocity
+            self.root_state_tensor[self.goal_object_indices[goal_env_ids]] = self.resetted_visual_goal_states
             reset_indices = torch.cat(
                 (reset_indices, self.goal_object_indices[goal_env_ids].to(torch.int32))
             )
@@ -1092,19 +1092,7 @@ class RobotHand(VecTask):
         object_start_pose.p.y = hand_start_pose.p.y + pose_dy
         object_start_pose.p.z = hand_start_pose.p.z + pose_dz
         
-    
-        goal_visual_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
-        # the goal object within the rendered scene will be displaced by this amount from the actual goal
-        self.goal_visual_displacement_tensor = to_torch(
-            [
-                goal_visual_displacement.x,
-                goal_visual_displacement.y,
-                goal_visual_displacement.z,
-            ],
-            device=self.device,
-        )
-        goal_start_pose = gymapi.Transform()
-        goal_start_pose.p = object_start_pose.p + goal_visual_displacement
+
 
         # compute aggregate size
         max_agg_bodies = self.num_hand_bodies + 2
@@ -1166,7 +1154,7 @@ class RobotHand(VecTask):
             goal_handle = self.gym.create_actor(
                 env_ptr,
                 goal_asset_list[i%len(self.cfg["env"]["object_type"])],
-                goal_start_pose,
+                object_start_pose,  # this will be immediately overwritten in reset_goal_states()
                 "goal_object",
                 i + self.num_envs,
                 0,
@@ -1196,12 +1184,10 @@ class RobotHand(VecTask):
         self.object_init_states = to_torch(
             object_init_states, dtype=torch.float, device=self.device
         ).view(self.num_envs, 13)
-        # this tensor sets the goal state of the object
+
+        # this tensor saves the goal state of the object (the actual values should be updated in reset_goal_states())
         self.goal_states = self.object_init_states.clone()
-        # lower it to match the height of the hand
-        self.goal_states[:, 2] -= 0.04
-        
-        self.goal_init_states = self.goal_states.clone()
+
         self.hand_indices = to_torch(hand_indices, dtype=torch.long, device=self.device)
         self.object_indices = to_torch(
             object_indices, dtype=torch.long, device=self.device
@@ -1451,7 +1437,7 @@ class RobotHand(VecTask):
         coordinate system (TODO wrt hand base)
         """
         obj_pos = self.object_pose.clone()[:, :3]
-        obj_pos -= self.goal_init_states[:, :3]
+        obj_pos -= self.object_init_states[:, :3]
         return obj_pos
 
     def _observation_obj_quat(self):
@@ -1494,7 +1480,7 @@ class RobotHand(VecTask):
         Returns the goal object position
         """
         goal_pos = self.goal_pose.clone()[:, :3]
-        goal_pos -= self.goal_init_states[:, :3]
+        goal_pos -= self.object_init_states[:, :3]
         return goal_pos
 
     def _observation_goal_quat(self):
@@ -1517,7 +1503,7 @@ class RobotHand(VecTask):
         Returns the pose_sensor position for each pose_sensor
         """
         pose_sensor_pos = self.pose_sensor_state.clone()[:, :, :3]
-        pose_sensor_pos -= self.goal_init_states[:, :3].unsqueeze(1)
+        pose_sensor_pos -= self.object_init_states[:, :3].unsqueeze(1)
         return pose_sensor_pos.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_quat(self):
