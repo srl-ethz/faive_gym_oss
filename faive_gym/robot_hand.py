@@ -589,7 +589,7 @@ class RobotHand(VecTask):
                 reset_indices = torch.cat(
                     (reset_indices, self.object_indices[env_ids].to(torch.int32))
                 )
-             if not self.cfg["env"]["hand_fix_base"]:
+            if not self.cfg["env"]["hand_fix_base"]:
                 hand_states = self.hand_init_states[env_ids].clone()
                 # don't implement reset randomization for now...
                 self.root_state_tensor[self.hand_indices[env_ids]] = hand_states
