@@ -2,6 +2,7 @@ defaults:
   - FaiveHandP0
 # use the Crawl class defined in tasks/crawl.py
 # see crawl.py for how to use
+# doesn't actually train, just an example of how to have a free base robot
 name: Crawl
 env:
   hand_fix_base: False

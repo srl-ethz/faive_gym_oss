@@ -13,7 +13,7 @@ not a serious task, just intended as an example of
 - how to create environments where the robot hand doesn't have a fixed base
 
 The robot hand learns to crawl on the floor like a horror film - except it doesn't even learn to crawl right now, see if you can make it work...
-Before, running, manually delete the "base" mesh in the MJCF file, since the fingers won't even touch the ground that much with the base.
+Before running, manually delete the "base" mesh in the MJCF file, since the fingers won't even touch the ground that much with the base.
 """
 
 class Crawl(RobotHand):
