@@ -2,6 +2,14 @@
 IsaacGym environments for the Faive Hand (and also somewhat easily extendable to other robotic hands), intended to be used together with [IsaacGymEnvs](https://github.com/NVIDIA-Omniverse/IsaacGymEnvs)
 ![](img/isaacgym_preview.gif)
 
+## Resources
+- [faive_gym tutorial video](https://www.youtube.com/watch?v=Nwa7xP3RtO0): A video tutorial on how to get started with the faive_gym library to train a policy with RL, configure the environment, and load your own robot model in the framework.
+- [Paper (arxiv)](https://arxiv.org/abs/2308.02453): The preprint for our Humanoids 2023 paper which uses `faive_gym`. If you use this library in your work, please cite this paper.
+- [Project website](https://srl-ethz.github.io/get-ball-rolling/): website introducing our Humanoids 2023 paper.
+- [Project overview video](https://www.youtube.com/watch?v=YahsMhqNU8o): 3-minute video introducing our work with the Faive Hand.
+
+## Installation Steps
+
 1. Install Isaac Gym
     1. Download Isaac Gym Preview 4 from the [website](https://developer.nvidia.com/isaac-gym)
 	1. Check isaacgym/docs/index.html for install instructions, but this README also documents a fast way to set it up
@@ -104,7 +112,7 @@ flowchart
 	a2c_common --load config--> cfg/train/FaiveHandP0PPO.yaml --load default config--> cfg/train/RobotHandDefaultPPO.yaml
 ```
 
-# Export a trained RL policy
+## Export a trained RL policy
 This will output a .onnx and .pt file to the same directory, which can be loaded in faive_franka_control or other solutions to run the policy on the real robot.
 The output files, created in the folder `faive_gym/exported_policies`, will have the names `[policy_name]_[timestamp]`, where `policy_name` is set by the `wandb_name`
 parameter. The export can be ran as follows:
@@ -117,10 +125,23 @@ To check if the `.onnx` outputs are correct, you can use [netron](https://netron
 To export several models at the same time (which can be handy when testing several policies on the robot), refer to `scripts/export_all_policies.py`.
 
 
-# Recording observations and joint positions for debugging
+## Recording observations and joint positions for debugging
 You can record all observations and joint positions for an already trained policy by running:
 ```
 python train.py task=FaiveHandP0 headless=True test=True checkpoint=runs/FaiveHand/nn/[your_checkpoint.pth] num_envs=[env_number] task.logging.record_dofs=True task.logging.record_observations=True task.logging.record_length=[your_record_length]
 ```
 As all environments are recorded in parallel, it is advised not to use a high number of environments - lower hundreds will work, but a high number of envs + long recordings could lead to memory issues.
 The recording length is given in the number of environment steps that are recording, if you'd like to record for a certain amount of seconds, check the task.sim.dt constant.
+
+## Other comments
+If you use this library in your work, please cite:
+```
+@misc{toshimitsu2023getting,
+	title={Getting the Ball Rolling: Learning a Dexterous Policy for a Biomimetic Tendon-Driven Hand with Rolling Contact Joints}, 
+	author={Yasunori Toshimitsu and Benedek Forrai and Barnabas Gavin Cangan and Ulrich Steger and Manuel Knecht and Stefan Weirich and Robert K. Katzschmann},
+	year={2023},
+	eprint={2308.02453},
+	archivePrefix={arXiv},
+	primaryClass={cs.RO}
+}
+```
