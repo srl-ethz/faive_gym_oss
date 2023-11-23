@@ -3,10 +3,16 @@ IsaacGym environments for the Faive Hand (and also somewhat easily extendable to
 ![](img/isaacgym_preview.gif)
 
 ## Resources
-- [faive_gym tutorial video](https://www.youtube.com/watch?v=Nwa7xP3RtO0): A video tutorial on how to get started with the faive_gym library to train a policy with RL, configure the environment, and load your own robot model in the framework.
-- [Paper (arxiv)](https://arxiv.org/abs/2308.02453): The preprint for our Humanoids 2023 paper which uses `faive_gym`. If you use this library in your work, please cite this paper.
-- [Project website](https://srl-ethz.github.io/get-ball-rolling/): website introducing our Humanoids 2023 paper.
-- [Project overview video](https://www.youtube.com/watch?v=YahsMhqNU8o): 3-minute video introducing our work with the Faive Hand.
+
+* [faive_gym tutorial video](https://www.youtube.com/watch?v=Nwa7xP3RtO0): A video tutorial on how to get started with the faive_gym library to train a policy with RL, configure the environment, and load your own robot model in the framework.
+* [faive_gym tips document](https://docs.google.com/document/d/1n91q4nECS4vzkC2Jn62DxLiTA15WmdjJsbqNxEuv4tE/edit?usp=sharing): shared Google doc with tips on how to use the library effectively.
+* [RL knowledge dump document](https://docs.google.com/document/d/1mLH4pmkmL0SE-hknsB_qGlR9QBu4GYbEzk0ho16TDC4/edit?usp=sharing): another shared Google doc with general tips about RL for manipulation
+
+---
+
+* [Paper (arxiv)](https://arxiv.org/abs/2308.02453): The preprint for our Humanoids 2023 paper which uses `faive_gym`. If you use this library in your work, please cite this paper.
+* [Project website](https://srl-ethz.github.io/get-ball-rolling/): website introducing our Humanoids 2023 paper.
+* [Project overview video](https://www.youtube.com/watch?v=YahsMhqNU8o): 3-minute video introducing our Humanoids 2023 work with the Faive Hand.
 
 ## Installation Steps
 
