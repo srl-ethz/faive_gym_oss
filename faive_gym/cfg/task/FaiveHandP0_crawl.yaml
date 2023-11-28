@@ -1,0 +1,39 @@
+defaults:
+  - FaiveHandP0
+# use the Crawl class defined in tasks/crawl.py
+# see crawl.py for how to use
+# doesn't actually train, just an example of how to have a free base robot
+name: Crawl
+env:
+  hand_fix_base: False
+  hand_start_p: [0, 0, 0.1]
+  hand_start_r: [0, 0, 0, 1]
+
+  object_fix_base: True
+  object_start_offset: [0, 0, 1]  # move it to where it won't interfere with hand
+
+rewards:
+  scales:
+    action_penalty: 0.
+    dof_acc_penalty: 0.
+    dof_vel_penalty: 0.
+    dof_trq_penalty: -0.0025 
+    success: 0.
+    drop_penalty: 0.
+    simple_hand_flat: 0.0
+    
+    reorienttask_obj_dist: 0.
+    reorienttask_obj_rot: 0.
+
+    crawl_forward_vel: 20.
+    crawl_penalty_upsidedown: -0.1
+
+observations:
+  # change to include more stuff about body
+  actor_observations: ["dof_position", "dof_speed", "dof_force",
+                       "hand_quat", "hand_vel",
+                       "actions"]
+                      
+  obs_dims:
+    hand_quat: 4
+    hand_vel: 6

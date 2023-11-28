@@ -82,8 +82,6 @@ class RobotHand(VecTask):
         # overwrite config to have the correct number of observations for actor and critic
         self.cfg["env"]["numObservations"], self.cfg["env"]["numStates"] = self._prepare_observations()
 
-        # define names of relevant body parts
-        self.hand_base_name = "root"
         self.sim_device_id = sim_device
 
         super().__init__(config=cfg, rl_device=rl_device, sim_device=sim_device, graphics_device_id=graphics_device_id, headless=headless, virtual_screen_capture=virtual_screen_capture, force_render=force_render)
@@ -139,26 +137,28 @@ class RobotHand(VecTask):
         )
     
         self.dof_force_tensor = gymtorch.wrap_tensor(dof_force_tensor).view(
-            self.num_envs, self.num_hand_dofs
+            self.num_envs, -1
         )
 
         # next, define new member variables that make it easier to access the state tensors
         # if arrays are not used for indexing, the sliced tensors will be views of the original tensors, and thus their values will be automatically updated
-        self.hand_dof_state = self.dof_state.view(self.num_envs, -1, 2)[
-            :, : self.num_hand_dofs
-        ]
+        # Since it uses the first self.num_hand_dofs values of the dof state,
+        # this code assumes that the robot hand is the first thing that is loaded into IsaacGym with create_actor().
+        dof_state = self.dof_state.view(self.num_envs, -1, 2)
+        hand_dof_state = dof_state[:, :self.num_hand_dofs]
         
-        self.hand_dof_pos = self.hand_dof_state[..., 0]
-        self.hand_dof_vel = self.hand_dof_state[..., 1]
-        self.prev_hand_dof_vel = torch.zeros_like(self.hand_dof_state[..., 1])
+        self.hand_dof_pos = hand_dof_state[..., 0]
+        self.hand_dof_vel = hand_dof_state[..., 1]
+        self.prev_hand_dof_vel = torch.zeros_like(hand_dof_state[..., 1])
+
+        object_goal_dof_state = dof_state[:, self.num_hand_dofs:]
+        assert object_goal_dof_state.shape[1] == 2 * self.num_object_dofs
+        self.object_goal_dof_pos = object_goal_dof_state[..., 0]
+        self.object_goal_dof_vel = object_goal_dof_state[..., 1]
         
-        self.goal_pose = self.goal_states[:, 0:7]
         self.goal_pos = self.goal_states[:, 0:3]
         self.goal_rot = self.goal_states[:, 3:7]
 
-        # Add base position for debugging/etc.
-        self.hand_base_pos = self.rigid_body_states[:, self.hand_base_handle][:, 0:3]
-        
         self.pose_sensor_state = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
         ]
@@ -166,15 +166,14 @@ class RobotHand(VecTask):
             self.num_envs, -1
         )
         assert self.vec_sensor_tensor.shape[1] % 6 == 0  # sanity check
-        self.num_bodies = self.rigid_body_states.shape[1]
 
-        self.num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
+        num_dofs = self.gym.get_sim_dof_count(self.sim) // self.num_envs
         # current position control targets for each joint (joints with no actuators should be set to 0)
         self.cur_targets = torch.zeros(
-            (self.num_envs, self.num_dofs), dtype=torch.float, device=self.device
+            (self.num_envs, num_dofs), dtype=torch.float, device=self.device
         )
         self.prev_targets = torch.zeros(
-            (self.num_envs, self.num_dofs), dtype=torch.float, device=self.device
+            (self.num_envs, num_dofs), dtype=torch.float, device=self.device
         )
 
         self.x_unit_tensor = to_torch(
@@ -229,14 +228,6 @@ class RobotHand(VecTask):
             device=self.device,
         )
 
-        self.debug_obs_buf = torch.zeros_like(self.obs_buf)
-        
-        # obs_buf is initialized in parent class but set the buffer for student observation here
-        # this is trained in a separate framework from rl_games, so it is treated a bit differently from the other observations
-        self.student_obs_buf = torch.zeros(
-            (self.num_envs, self.student_obs_dim), device=self.device, dtype=torch.float32
-        )
-
         # joint and sensor readout recording buffers
         self.record_dof_poses = self.cfg["logging"]["record_dofs"]
         self.record_length = self.cfg["logging"]["record_length"]
@@ -255,13 +246,13 @@ class RobotHand(VecTask):
             )
         self.num_recorded_steps = 0
         timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.recording_dir = os.path.join(
+        recording_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             f'recordings')    
-        if not os.path.exists(self.recording_dir):
-            os.makedirs(self.recording_dir)
+        if not os.path.exists(recording_dir):
+            os.makedirs(recording_dir)
         self.recording_save_path = os.path.join(
-            self.recording_dir,
+            recording_dir,
             f'{timestamp_str}')
 
     def pre_physics_step(self, actions):
@@ -275,7 +266,7 @@ class RobotHand(VecTask):
         clip_actions = self.cfg["actions"]["clip_value"]
         actions = torch.clip(actions, -clip_actions, clip_actions)
         self.actions = actions.to(self.device)
-        # print(f"{self.actions.mean(dim=0)=}\t{self.actions.std(dim=0)=}")
+
         if self.cfg["env"]["use_relative_control"]:
             targets = (
                 self.prev_targets[:, self.actuated_dof_indices]
@@ -312,16 +303,19 @@ class RobotHand(VecTask):
         self.object_rot = self.root_state_tensor[self.object_indices, 3:7]
         self.object_linvel = self.root_state_tensor[self.object_indices, 7:10]
         self.object_angvel = self.root_state_tensor[self.object_indices, 10:13]
-        
-        # compute finger states
-        self.pose_sensor_state = self.rigid_body_states[:, self.pose_sensor_handles][
+
+        self.hand_pose = self.root_state_tensor[self.hand_indices, :7]
+        self.hand_vel = self.root_state_tensor[self.hand_indices, 7:]
+
+        # get pose sensor states
+        self.pose_sensor_state[:] = self.rigid_body_states[:, self.pose_sensor_handles][
             :, :, 0:13
         ]
 
         # update the history buffers
         self.obj_pose_buffer[:,:-7] = self.obj_pose_buffer[:,7:]
         self.obj_pose_buffer[:,-7:] = self.object_pose.clone()
-        self.obj_pose_buffer[:,-7:-4] -= self.goal_init_states[:, :3]  # try to have zero mean
+        self.obj_pose_buffer[:,-7:-4] -= self.object_init_states[:, :3]  # try to have zero mean
 
         self.dof_pos_buffer[:,:-self.num_actuated_dofs] = self.dof_pos_buffer[:,self.num_actuated_dofs:]
         self.dof_pos_buffer[:,-self.num_actuated_dofs:] = unscale(
@@ -347,12 +341,12 @@ class RobotHand(VecTask):
 
         # compute acceleration by taking finite difference of velocity
         self.dof_acceleration = (self.hand_dof_vel - self.prev_hand_dof_vel) / self.control_dt
-        self.prev_hand_dof_vel = self.hand_dof_vel.clone()
+        self.prev_hand_dof_vel[:] = self.hand_dof_vel.clone()
 
         self.check_termination()
         self.compute_reward()
 
-        # if recording is avtivate, register dof poses/observations
+        # if recording is activated, register dof poses/observations
         if self.record_dof_poses or self.record_observations:
             if self.num_recorded_steps <= self.record_length:
                 self.record_step()
@@ -371,8 +365,7 @@ class RobotHand(VecTask):
         if not self.headless and self.cfg["env"]["enable_debug_viz"]:
             self.gym.clear_lines(self.viewer)
             for i in range(self.num_envs):
-                hand_pos = self.hand_base_pos.cpu().numpy()
-                x, y, z = hand_pos[i]
+                x, y, z = self.hand_pose[i, :3].cpu().numpy()
                 self._draw_sphere(i, x, y, z)
                 self._draw_frame_axes(i, self.goal_pos[i], self.goal_rot[i])
                 self._draw_frame_axes(i, self.object_pos[i], self.object_rot[i])
@@ -446,16 +439,18 @@ class RobotHand(VecTask):
 
     def reset_goal_states(self, env_ids):
         """
-        reset the goal states to the initial states for env_ids by overwriting self.goal_states.
+        reset the goal states for env_ids
+        update self.goal_states (shape (num_envs, 7))
+        and set self.resetted_visual_goal_states (sets the state of the goal object visualization in IsaacGym and has shape (len(env_ids), 7))
+        the visual goal states is set as a separate tensor from self.goal_states so that, for example, the visualized goal can be shown in a different location from the actual goal position
         this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
         """
         rand_floats_goal = torch_rand_float(
-            -1.0, 1.0, (len(env_ids), 3), self.device
+            -1.0, 1.0, (len(env_ids), 2), self.device
         )
-        # reset goal position
-        self.goal_states[env_ids, 0:3] = self.goal_init_states[
-            env_ids, 0:3
-        ]
+        self.goal_states[env_ids] = self.object_init_states[env_ids].clone()
+        # lower it to match the height of the hand
+        self.goal_states[env_ids, 2] -= 0.04
         # reset goal orientation
         self.goal_states[env_ids, 3:7] = randomize_rotation(
             rand_floats_goal[:, 0],
@@ -463,7 +458,35 @@ class RobotHand(VecTask):
             self.x_unit_tensor[env_ids],
             self.y_unit_tensor[env_ids],
         )
+        self.resetted_visual_goal_states = self.goal_states[env_ids].clone()
+        goal_visual_displacement = [-0.2, -0.06, 0.08]
+        # the goal object within the rendered scene will be displaced by this amount from the actual goal
+        self.resetted_visual_goal_states[:, 0] += goal_visual_displacement[0]
+        self.resetted_visual_goal_states[:, 1] += goal_visual_displacement[1]
+        self.resetted_visual_goal_states[:, 2] += goal_visual_displacement[2]
+
     
+    def reset_object_states(self, env_ids):
+        """
+        reset the object states to the initial states for env_ids by setting self.resetted_object_states (which has shape (len(env_ids), 13))
+        this implementation is for the in-hand reorientation task, but override it in your class if the reset procedure is different
+        """
+        rand_floats = torch_rand_float(
+            -1.0, 1.0, (len(env_ids), 5), self.device
+        )
+        # reset object position
+        self.resetted_object_states = self.object_init_states[env_ids].clone()
+        self.resetted_object_states[:, 0:3] += (
+            rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
+        )
+        # reset object rotation
+        self.resetted_object_states[:, 3:7] = randomize_rotation(
+            rand_floats[:, 3],
+            rand_floats[:, 4],
+            self.x_unit_tensor[env_ids],
+            self.y_unit_tensor[env_ids],
+        )
+
     def custom_reset(self):
         """
         if you want to set up your own specific code to override the pose of objects, do so here
@@ -495,17 +518,8 @@ class RobotHand(VecTask):
         if len(goal_env_ids) > 0:
             # overwrite self.goal_states in this function
             self.reset_goal_states(goal_env_ids)
-
             # set the goal states in the sim
-            self.root_state_tensor[self.goal_object_indices[goal_env_ids], 0:3] = (
-                self.goal_states[goal_env_ids, 0:3] + self.goal_visual_displacement_tensor
-            )
-            self.root_state_tensor[
-                self.goal_object_indices[goal_env_ids], 3:7
-            ] = self.goal_states[goal_env_ids, 3:7]
-            self.root_state_tensor[
-                self.goal_object_indices[goal_env_ids], 7:13
-            ] = 0  # zero velocity
+            self.root_state_tensor[self.goal_object_indices[goal_env_ids]] = self.resetted_visual_goal_states
             reset_indices = torch.cat(
                 (reset_indices, self.goal_object_indices[goal_env_ids].to(torch.int32))
             )
@@ -513,69 +527,79 @@ class RobotHand(VecTask):
         if len(env_ids) > 0:
             # draw rand floats
             rand_floats = torch_rand_float(
-                -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 2 + 5), self.device
+                -1.0, 1.0, (len(env_ids), self.num_hand_dofs * 2), self.device
             )
             # reset hand state
-            dof_range = self.hand_dof_upper_limits - self.hand_dof_lower_limits
-            dof_pos = (
+            hand_dof_range = self.hand_dof_upper_limits - self.hand_dof_lower_limits
+            hand_dof_pos = (
                 self.hand_dof_default_pos
-                + rand_floats[:, 5 : 5 + self.num_hand_dofs]
+                + rand_floats[:, : self.num_hand_dofs]
                 * self.cfg["reset_noise"]["dof_pos"]
-                * dof_range
+                * hand_dof_range
             )
-            dof_pos = torch.clamp(
-                dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits
+            hand_dof_pos = torch.clamp(
+                hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits
             )
-            dof_vel = (
+            hand_dof_vel = (
                 self.hand_dof_default_vel
-                + rand_floats[:, 5 + self.num_hand_dofs : 5 + self.num_hand_dofs * 2]
+                + rand_floats[:, self.num_hand_dofs : self.num_hand_dofs * 2]
                 * self.cfg["reset_noise"]["dof_vel"]
             )
-            self.hand_dof_pos[env_ids] = dof_pos
-            self.hand_dof_vel[env_ids] = dof_vel
-            # TODO: may have to set nonactuated to 0
-            self.prev_targets[env_ids] = dof_pos
-            self.cur_targets[env_ids] = dof_pos
+            self.hand_dof_pos[env_ids] = hand_dof_pos
+            self.hand_dof_vel[env_ids] = hand_dof_vel
+            self.prev_targets[env_ids, :self.num_hand_dofs] = hand_dof_pos
+            self.cur_targets[env_ids, :self.num_hand_dofs] = hand_dof_pos
+
+            # reset object dof state (just set them to zero for now)
+            self.object_goal_dof_pos[env_ids] = 0
+            self.object_goal_dof_vel[env_ids] = 0
 
             hand_indices = self.hand_indices[env_ids].to(torch.int32)
+            object_indices = self.object_indices[env_ids].to(torch.int32)
+            goal_indices = self.goal_object_indices[env_ids].to(torch.int32)
+            if self.num_object_dofs > 0:
+                reset_dof_indices = torch.cat(
+                    (hand_indices, object_indices, goal_indices)
+                ).to(torch.int32)
+            else:
+                # do not set the object dofs if there are no object dofs (will cause an error otherwise)
+                reset_dof_indices = hand_indices
             # set the dof targets in the sim
             self.gym.set_dof_position_target_tensor_indexed(
                 self.sim,
                 gymtorch.unwrap_tensor(self.prev_targets),
                 gymtorch.unwrap_tensor(hand_indices),
-                len(env_ids),
+                len(hand_indices),
             )
             # set the dof states in the sim
             self.gym.set_dof_state_tensor_indexed(
                 self.sim,
                 gymtorch.unwrap_tensor(self.dof_state),
-                gymtorch.unwrap_tensor(hand_indices),
-                len(env_ids),
+                gymtorch.unwrap_tensor(reset_dof_indices),
+                len(reset_dof_indices),
             )
 
-            # reset object position
-            object_states = self.object_init_states[env_ids].clone()
-            object_states[:, 0:3] += (
-                rand_floats[:, 0:3] * self.cfg["reset_noise"]["object_pos"]
-            )
-            # reset object rotation
-            object_states[:, 3:7] = randomize_rotation(
-                rand_floats[:, 3],
-                rand_floats[:, 4],
-                self.x_unit_tensor[env_ids],
-                self.y_unit_tensor[env_ids],
-            )
-            
-            # set the object state in the sim
-            self.root_state_tensor[self.object_indices[env_ids]] = object_states
+            # if object is fixed to the base, don't change its pose
+            if not self.cfg["env"]["object_fix_base"]:
+                # set self.resetted_object_states in this function
+                self.reset_object_states(env_ids)
+                # set the object state in the sim
+                self.root_state_tensor[self.object_indices[env_ids]] = self.resetted_object_states
 
-            reset_indices = torch.cat(
-                (reset_indices, self.object_indices[env_ids].to(torch.int32))
-            )
+                reset_indices = torch.cat(
+                    (reset_indices, self.object_indices[env_ids].to(torch.int32))
+                )
+            if not self.cfg["env"]["hand_fix_base"]:
+                hand_states = self.hand_init_states[env_ids].clone()
+                # don't implement reset randomization for now...
+                self.root_state_tensor[self.hand_indices[env_ids]] = hand_states
+                reset_indices = torch.cat(
+                    (reset_indices, self.hand_indices[env_ids].to(torch.int32))
+                )
             # reset buffers
             self.progress_buf[env_ids] = 0
 
-        if len(goal_env_ids) or len(env_ids):
+        if len(reset_indices) > 0:
             # apparently this can only be called once per step?
             # will return False if command fails
             assert self.gym.set_actor_root_state_tensor_indexed(
@@ -656,10 +680,6 @@ class RobotHand(VecTask):
             )
         else:
             critic_obs_dim = 0
-        # student observations
-        self.student_obs_functions, self.student_obs_dim = collect_observation_functions_compute_dim(
-            self.cfg["observations"]["student_observations"]
-        )
         return actor_obs_dim, critic_obs_dim
 
     def _prepare_logged_functions(self):
@@ -830,13 +850,6 @@ class RobotHand(VecTask):
             clip_obs = self.cfg["observations"]["clip_value"]
             self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
             self.states_buf = torch.clip(self.states_buf, -clip_obs, clip_obs)
-    
-    def compute_student_observations(self):
-        """
-        computes the observations sent to student
-        """
-        self._fill_obs(self.student_obs_buf, self.cfg["observations"]["student_observations"], self.student_obs_functions)
-
 
     def get_logs(self):
         """
@@ -906,6 +919,7 @@ class RobotHand(VecTask):
             "stell_dodeca": "objects_dext_manip/stell_dodeca.urdf",
             "stairs": "objects_dext_manip/stairs.urdf",
             "block_pyr": "objects_dext_manip/block_pyr.urdf",
+            "simple_book": "mjcf/simple_book.xml",
         }
         for i in range(len(self.cfg["env"]["object_type"])):
             try:
@@ -919,9 +933,9 @@ class RobotHand(VecTask):
         
         # load Faive Hand asset with these options
         asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = True
+        asset_options.fix_base_link = self.cfg["env"]["hand_fix_base"]
         asset_options.collapse_fixed_joints = True
-        asset_options.disable_gravity = True
+        asset_options.disable_gravity = False  # TODO: check that this doesn't affect performance before PR merge!
         asset_options.thickness = 0.001
         asset_options.angular_damping = 0.01
         if self.physics_engine == gymapi.SIM_PHYSX:
@@ -1044,19 +1058,15 @@ class RobotHand(VecTask):
         for fs_handle in force_sensor_handles:
             self.gym.create_asset_force_sensor(hand_asset, fs_handle, sensor_pose)
     
-        hand_base = self.gym.find_asset_rigid_body_index(
-            hand_asset, self.hand_base_name
-        )
-        
-
         # load manipulated object and goal assets
         object_asset_list = []
         goal_asset_list = []
-        for i in range(len(self.cfg["env"]["object_type"])):
+        for object_type in self.cfg["env"]["object_type"]:
             object_asset_file = os.path.normpath(
-                    asset_files_dict[self.cfg["env"]["object_type"][i]]
+                    asset_files_dict[object_type]
                 )
             object_asset_options = gymapi.AssetOptions()
+            object_asset_options.fix_base_link = self.cfg["env"]["object_fix_base"]
             object_asset_list.append(self.gym.load_asset(
                 self.sim, asset_root, object_asset_file, object_asset_options
             ))
@@ -1064,6 +1074,19 @@ class RobotHand(VecTask):
             goal_asset_list.append(self.gym.load_asset(
                 self.sim, asset_root, object_asset_file, object_asset_options
             ))
+            if len(object_asset_list) == 1:
+                self.num_object_bodies = self.gym.get_asset_rigid_body_count(object_asset_list[-1])
+                self.num_object_shapes = self.gym.get_asset_rigid_shape_count(object_asset_list[-1])
+                self.num_object_dofs = self.gym.get_asset_dof_count(object_asset_list[-1])
+            else:
+                # check that all object assets are the same
+                assert self.num_object_bodies == self.gym.get_asset_rigid_body_count(object_asset_list[-1])
+                assert self.num_object_shapes == self.gym.get_asset_rigid_shape_count(object_asset_list[-1])
+                assert self.num_object_dofs == self.gym.get_asset_dof_count(object_asset_list[-1])
+            # check that goal assets are the same as object assets
+            assert self.num_object_bodies == self.gym.get_asset_rigid_body_count(goal_asset_list[-1])
+            assert self.num_object_shapes == self.gym.get_asset_rigid_shape_count(goal_asset_list[-1])
+            assert self.num_object_dofs == self.gym.get_asset_dof_count(goal_asset_list[-1])
             
 
         hand_start_pose = gymapi.Transform()
@@ -1072,7 +1095,6 @@ class RobotHand(VecTask):
                                         self.cfg['env']['hand_start_p'][2])
         object_start_pose = gymapi.Transform()
         object_start_pose.p = gymapi.Vec3()
-        # rotate 200 degrees around x axis to make palm face up, and slightly tilt it downwards
         hand_start_pose.r = gymapi.Quat(self.cfg['env']['hand_start_r'][0],
                                         self.cfg['env']['hand_start_r'][1],
                                         self.cfg['env']['hand_start_r'][2],
@@ -1083,25 +1105,14 @@ class RobotHand(VecTask):
         object_start_pose.p.y = hand_start_pose.p.y + pose_dy
         object_start_pose.p.z = hand_start_pose.p.z + pose_dz
         
-    
-        goal_visual_displacement = gymapi.Vec3(-0.2, -0.06, 0.08)
-        # the goal object within the rendered scene will be displaced by this amount from the actual goal
-        self.goal_visual_displacement_tensor = to_torch(
-            [
-                goal_visual_displacement.x,
-                goal_visual_displacement.y,
-                goal_visual_displacement.z,
-            ],
-            device=self.device,
-        )
-        goal_start_pose = gymapi.Transform()
-        goal_start_pose.p = object_start_pose.p + goal_visual_displacement
+
 
         # compute aggregate size
-        max_agg_bodies = self.num_hand_bodies + 2
-        max_agg_shapes = self.num_hand_shapes + 2
+        max_agg_bodies = self.num_hand_bodies + 2 * self.num_object_bodies
+        max_agg_shapes = self.num_hand_shapes + 2 * self.num_object_shapes
 
         self.envs = []
+        hand_init_states = []
         object_init_states = []
         hand_indices = []
         object_indices = []
@@ -1129,11 +1140,30 @@ class RobotHand(VecTask):
             self.gym.set_rigid_body_color(
                 env_ptr, actor_handle, 0, gymapi.MESH_VISUAL, gymapi.Vec3(0.25, 0.25, 0.25))
 
+            hand_init_states.append(
+                [
+                    hand_start_pose.p.x,
+                    hand_start_pose.p.y,
+                    hand_start_pose.p.z,
+                    hand_start_pose.r.x,
+                    hand_start_pose.r.y,
+                    hand_start_pose.r.z,
+                    hand_start_pose.r.w,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ])
+
             # add object, seg_id = 1
+            # randomly choose which object this environment will have
+            object_index = torch.randint(len(self.cfg["env"]["object_type"]), (1,)).item()
             object_handle = self.gym.create_actor(
-                env_ptr, object_asset_list[i%len(self.cfg["env"]["object_type"])], object_start_pose, "object", i, 0, 1
+                env_ptr, object_asset_list[object_index], object_start_pose, "object", i, 0, 1
             )
-            self.object_type[i][i%len(self.cfg["env"]["object_type"])] = 1
+            self.object_type[i][object_index] = 1
             object_init_states.append(
                 [
                     object_start_pose.p.x,
@@ -1156,8 +1186,8 @@ class RobotHand(VecTask):
             # by setting the fifth argument to not coincide with the others, the goal object does not collide with anything else
             goal_handle = self.gym.create_actor(
                 env_ptr,
-                goal_asset_list[i%len(self.cfg["env"]["object_type"])],
-                goal_start_pose,
+                goal_asset_list[object_index],
+                object_start_pose,  # this will be immediately overwritten in reset_goal_states()
                 "goal_object",
                 i + self.num_envs,
                 0,
@@ -1183,16 +1213,17 @@ class RobotHand(VecTask):
 
             self.envs.append(env_ptr)
         
-        # used for resetting the object
+        # used for resetting the hand and object
+        self.hand_init_states = to_torch(
+            hand_init_states, dtype=torch.float, device=self.device
+        ).view(self.num_envs, 13)
         self.object_init_states = to_torch(
             object_init_states, dtype=torch.float, device=self.device
         ).view(self.num_envs, 13)
-        # this tensor sets the goal state of the object
+
+        # this tensor saves the goal state of the object (the actual values should be updated in reset_goal_states())
         self.goal_states = self.object_init_states.clone()
-        # lower it to match the height of the hand
-        self.goal_states[:, 2] -= 0.04
-        
-        self.goal_init_states = self.goal_states.clone()
+
         self.hand_indices = to_torch(hand_indices, dtype=torch.long, device=self.device)
         self.object_indices = to_torch(
             object_indices, dtype=torch.long, device=self.device
@@ -1202,10 +1233,6 @@ class RobotHand(VecTask):
             goal_object_indices, dtype=torch.long, device=self.device
         )
 
-        self.hand_base_handle = to_torch(
-            hand_base, dtype=torch.long, device=self.device
-        )
-        
         self.force_sensor_handles = to_torch(
             force_sensor_handles, dtype=torch.long, device=self.device
         )
@@ -1441,8 +1468,8 @@ class RobotHand(VecTask):
         Returns the observed object pos in the env's
         coordinate system (TODO wrt hand base)
         """
-        obj_pos = self.object_pose.clone()[:, :3]
-        obj_pos -= self.goal_init_states[:, :3]
+        obj_pos = self.object_pos.clone()
+        obj_pos -= self.object_init_states[:, :3]
         return obj_pos
 
     def _observation_obj_quat(self):
@@ -1451,7 +1478,7 @@ class RobotHand(VecTask):
         coordinate system (TODO wrt hand base) represented by
         a quaternion
         """
-        obj_quat = self.object_pose.clone()[:, 3:7]
+        obj_quat = self.object_rot.clone()
         return obj_quat
 
     def _observation_obj_linvel(self):
@@ -1484,8 +1511,8 @@ class RobotHand(VecTask):
         """
         Returns the goal object position
         """
-        goal_pos = self.goal_pose.clone()[:, :3]
-        goal_pos -= self.goal_init_states[:, :3]
+        goal_pos = self.goal_pos.clone()
+        goal_pos -= self.object_init_states[:, :3]
         return goal_pos
 
     def _observation_goal_quat(self):
@@ -1493,7 +1520,7 @@ class RobotHand(VecTask):
         Returns the goal object orientation, represented by 
         a quaternion
         """
-        goal_quat = self.goal_pose.clone()[:, 3:7]
+        goal_quat = self.goal_rot.clone()
         return goal_quat
 
     def _observation_goal_quat_diff(self):
@@ -1508,7 +1535,7 @@ class RobotHand(VecTask):
         Returns the pose_sensor position for each pose_sensor
         """
         pose_sensor_pos = self.pose_sensor_state.clone()[:, :, :3]
-        pose_sensor_pos -= self.goal_init_states[:, :3].unsqueeze(1)
+        pose_sensor_pos -= self.object_init_states[:, :3].unsqueeze(1)
         return pose_sensor_pos.reshape(self.num_envs, -1)
 
     def _observation_pose_sensor_quat(self):

@@ -1,0 +1,22 @@
+<mujoco model="book">
+    <!-- A5 size book -->
+    <option timestep="0.002" gravity="0 0 -9.81" collision="predefined"/>
+    <default>
+        <joint type="hinge" pos="0 -0.2 0.007" axis="0 1 0" limited="true" damping="0.0 1"/>
+        <geom rgba="0.8 0.2 .2 1"/>
+    </default>
+    <worldbody>
+        <body name="simple_book">
+            <geom name="spine" type="cylinder" size="0.01" fromto="-0.074 -0.1049 0 -0.074 0.1049 0"/>
+            <geom name="pages" type="box" size="0.07 0.105 0.008" rgba="1 1 1 1"/>
+            <body name="front_cover">
+                <geom name="front_cover" type="box" size="0.074 0.105 0.002" pos="0 0 0.01"/>
+                <joint name="front_cover_joint" pos="-0.074 0 0" range="-150 0"/>
+            </body>
+            <body name="back_cover">
+                <geom name="back_cover" type="box" size="0.074 0.105 0.002" pos="0 0 -0.01"/>
+                <joint name="back_cover_joint" pos="-0.074 0 0" range="0 150"/>
+            </body>
+        </body>
+    </worldbody>
+</mujoco>
