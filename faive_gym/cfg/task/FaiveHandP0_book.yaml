@@ -2,5 +2,9 @@ defaults:
   - FaiveHandP0
 # a simple example of introducing an articulated object
 # doesn't learn any actual task, feel free to improve it...
+
+# if you want to get the joint angle of the articulated object, that can be computed by accessing the corresponding indices in self.dof_state
+# e.g. if the object is 1 DoF and was loaded (with create_actor) right after the robot
+# the object joint position and velocity can be accessed by self.dof_state.view(self.num_envs, -1, 2)[:, self.num_hand_dofs]
 env:
   object_type: ["simple_book"]

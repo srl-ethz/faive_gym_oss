@@ -28,8 +28,6 @@ rewards:
     crawl_forward_vel: 20.
     crawl_penalty_upsidedown: -0.1
 
-  fall_dist_threshold: 10.  # practically disabled
-
 observations:
   # change to include more stuff about body
   actor_observations: ["dof_position", "dof_speed", "dof_force",
