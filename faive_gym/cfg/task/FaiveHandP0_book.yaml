@@ -1,0 +1,6 @@
+defaults:
+  - FaiveHandP0
+# a simple example of introducing an articulated object
+# doesn't learn any actual task, feel free to improve it...
+env:
+  object_type: ["simple_book"]
