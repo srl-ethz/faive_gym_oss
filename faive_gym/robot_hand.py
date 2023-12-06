@@ -1353,15 +1353,14 @@ class RobotHand(VecTask):
         This reward was used to generate the motions used in TEDx demo, but it may be more stable to set a goal object with that slowly rotates, like in "Circus ANYmal" paper
         """
         rotvel = self.object_angvel_numerical
-        # give max reward when rotvel is between -1 and -2
+        # give max reward when rotvel magnitude is larger than 1 rad/s
         # optionally flip this sign back to positive for the
         # ablation study
         direction = - self.cfg["env"]["x_rotation_dir"]
         a = direction * rotvel[:, 0] + 1
         b = torch.ones_like(a) * 2
-        c = rotvel[:, 0] + 4
-        # return the smallest of the three
-        return torch.min(torch.min(a, b), c)
+        # return the smallest of the two
+        return torch.min(a, b)
 
     # ------------- observation functions -----------------
     # the observation functions below may not be called depending on the
