@@ -1481,6 +1481,12 @@ class RobotHand(VecTask):
         obj_quat = self.object_rot.clone()
         return obj_quat
 
+    def _observation_obj_rot(self):
+        """
+        Returns the 6D rotation representation of object
+        """
+        return quat2rot(self.object_rot)
+
     def _observation_obj_linvel(self):
         """
         Returns the linear velocity of the manipulated
@@ -1523,6 +1529,9 @@ class RobotHand(VecTask):
         goal_quat = self.goal_rot.clone()
         return goal_quat
 
+    def _observation_goal_rot(self):
+        return quat2rot(self.goal_rot)
+
     def _observation_goal_quat_diff(self):
         """
         Returns the difference in rotation between the
@@ -1530,6 +1539,9 @@ class RobotHand(VecTask):
         """
         return quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
     
+    def _observation_goal_rot_diff(self):
+        return quat2rot(quat_mul(self.object_rot, quat_conjugate(self.goal_rot)))
+
     def _observation_pose_sensor_pos(self):
         """
         Returns the pose_sensor position for each pose_sensor
@@ -1584,3 +1596,17 @@ def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor),
         quat_from_angle_axis(rand1 * np.pi, y_unit_tensor),
     )
+
+@torch.jit.script
+def quat2rot(quat):
+    """
+    takes in a list of quaternions (N x 4) and outputs the 6D orientation representation (N x 6)
+    """
+    x_axis = torch.zeros((quat.shape[0], 3), dtype=torch.float, device=quat.device)
+    x_axis[:, 0] = 1
+    y_axis = torch.zeros((quat.shape[0], 3), dtype=torch.float, device=quat.device)
+    y_axis[:, 1] = 1
+    rot = torch.zeros((quat.shape[0], 6), device=quat.device)
+    rot[:, :3] = quat_apply(quat, x_axis)
+    rot[:, 3:] = quat_apply(quat, y_axis)
+    return rot

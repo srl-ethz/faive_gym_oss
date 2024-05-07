@@ -23,13 +23,16 @@ observations:
     dof_force: 11
     obj_pos: 3
     obj_quat: 4
+    obj_rot: 6
     obj_linvel: 3
     obj_angvel: 3
     obj_linvel_numerical: 3
     obj_angvel_numerical: 3
     goal_pos: 3
     goal_quat: 4
+    goal_rot: 6
     goal_quat_diff: 4
+    goal_rot_diff: 6
     pose_sensor_pos: 15 # 3 * 5
     pose_sensor_quat: 20  # 4 * 5 
     pose_sensor_linvel: 15  # 3 * 5

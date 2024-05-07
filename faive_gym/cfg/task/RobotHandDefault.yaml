@@ -137,8 +137,8 @@ observations:
   # otherwise, the actor_observations is used for both actor and critic
   asymmetric_observations: False
   actor_observations: ["dof_position", "dof_speed", "dof_force",
-                       "obj_pos", "obj_quat", "obj_linvel", "obj_angvel",
-                       "goal_pos", "goal_quat", "goal_quat_diff",
+                       "obj_pos", "obj_rot", "obj_linvel", "obj_angvel",
+                       "goal_pos", "goal_rot", "goal_rot_diff",
                        "pose_sensor_pos", "pose_sensor_quat", "pose_sensor_linvel", "pose_sensor_angvel", "force_sensor_force",
                        "actions"]
 
