@@ -1,9 +1,8 @@
 <mujoco model="book">
     <!-- A5 size book -->
-    <option timestep="0.002" gravity="0 0 -9.81" collision="predefined"/>
     <default>
-        <joint type="hinge" pos="0 -0.2 0.007" axis="0 1 0" limited="true" damping="0.0 1"/>
-        <geom rgba="0.8 0.2 .2 1"/>
+        <joint type="hinge" pos="0 -0.2 0.007" axis="0 1 0" limited="true" damping="0.01"/>
+        <geom contype="0" conaffinity="0" rgba="0.8 0.2 .2 1"/>
     </default>
     <worldbody>
         <body name="simple_book">
